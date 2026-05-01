@@ -51,7 +51,12 @@ async function getFeaturedProducts(): Promise<BentoItem[]> {
 export default async function HomePage() {
   const settings = await getStoreSettings();
   const bentoItems = await getFeaturedProducts();
-  const packItems = bentoItems.filter((item) => item.compareAtPrice && item.compareAtPrice > item.price);
+  const packItems = bentoItems.filter(
+    (item) =>
+      typeof item.price === "number" &&
+      typeof item.compareAtPrice === "number" &&
+      item.compareAtPrice > item.price
+  );
   const packsToShow = packItems.length > 0 ? packItems : bentoItems.slice(0, 3);
 
   return (
