@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { upsertClienteFromOrder } from "@/lib/clientes/upsertClienteFromOrder";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderNotification } from "@/lib/email/sendOrderNotification";
 
@@ -57,8 +58,9 @@ export async function POST(request: NextRequest) {
     // Uses the admin client (service_role) so it bypasses RLS and can set
     // status = 'paid' directly — simulating a completed Flow payment.
     if (FLOW_MOCK) {
+      const admin = createAdminClient();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (createAdminClient() as any)
+      const { data, error } = await (admin as any)
         .from("orders")
         .insert(buildOrderPayload(body, "paid"))
         .select("order_number")
@@ -74,6 +76,18 @@ export async function POST(request: NextRequest) {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderNumber: number = (data as any).order_number;
+      try {
+        await upsertClienteFromOrder(admin, {
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone ?? null,
+          address: customer.address,
+          city: customer.city,
+          region: customer.region,
+        }, Number(total));
+      } catch (e) {
+        console.error("[cliente-upsert] error", { phase: "mock_route", email: customer.email, error: String(e) });
+      }
       const mockToken = `MOCK-${orderNumber}`;
       console.info(`[Flow mock] Orden #${orderNumber} creada con status 'paid'`);
       console.log("[order-created]", {
@@ -116,8 +130,9 @@ export async function POST(request: NextRequest) {
     // ── Live mode — insert pending order, then call Flow ──────────────────────
 
     // Persist order first (mandatory). If this fails, do not continue to Flow.
+    const admin = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: orderData, error: orderError } = await (createAdminClient() as any)
+    const { data: orderData, error: orderError } = await (admin as any)
       .from("orders")
       .insert(buildOrderPayload(body, "pending"))
       .select("order_number")
@@ -129,6 +144,19 @@ export async function POST(request: NextRequest) {
         { error: "No se pudo crear la orden antes de iniciar el pago." },
         { status: 500 }
       );
+    }
+
+    try {
+      await upsertClienteFromOrder(admin, {
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone ?? null,
+        address: customer.address,
+        city: customer.city,
+        region: customer.region,
+      }, Number(total));
+    } catch (e) {
+      console.error("[cliente-upsert] error", { phase: "live_route", email: customer.email, error: String(e) });
     }
 
     const commerceOrder = `TG-${orderData.order_number}`;

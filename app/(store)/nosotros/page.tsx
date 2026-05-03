@@ -123,7 +123,7 @@ export default function NosotrosPage() {
                 Ver productos
               </Button>
             </Link>
-            <Link href="https://wa.me/56900000000" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+            <Link href="https://wa.me/56987075445" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
               <Button size="lg" variant="secondary" fullWidth className="gap-2">
                 <span aria-hidden>💬</span>
                 Hablar por WhatsApp

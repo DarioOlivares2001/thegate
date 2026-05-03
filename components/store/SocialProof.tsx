@@ -3,19 +3,19 @@ const TESTIMONIALS = [
     name: "Camila Rojas",
     city: "Santiago",
     comment:
-      "Llegó súper rápido y el packaging es impecable. La zapatilla es exactamente como en las fotos, calidad top.",
+      "La arena sanitaria controla mejor el olor de lo que esperaba y el formato rinde bastante en casa con dos gatos.",
   },
   {
     name: "Matías Fuentes",
     city: "Valparaíso",
     comment:
-      "Primera vez comprando online y quedé muy contento. La mochila es resistente y el envío llegó antes de lo esperado.",
+      "Compré arenero con alfombra atrapa arena y de verdad se nota menos desorden alrededor. Fue una muy buena combinación.",
   },
   {
     name: "Valentina Mora",
-    city: "Concepción",
+    city: "Rancagua",
     comment:
-      "El cinturón es artesanal de verdad. Se nota la diferencia con los de tienda. Ya compré dos y pienso volver.",
+      "El spray antiolor ayuda entre limpiezas y el pedido llegó rápido a Rancagua. Todo venía bien presentado.",
   },
 ];
 

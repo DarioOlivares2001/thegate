@@ -315,7 +315,7 @@ export function CartDrawer({
                                   .filter(Boolean)
                                   .join(" ")}
                               >
-                                Agregar 🔥
+                                Agregar
                               </button>
                             </div>
                           </div>
@@ -513,7 +513,7 @@ export function CartDrawer({
                                     .filter(Boolean)
                                     .join(" ")}
                                 >
-                                  Agregar 🔥
+                                  Agregar
                                 </button>
                               </div>
                             </div>

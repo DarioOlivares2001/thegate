@@ -413,6 +413,28 @@ export default function CheckoutPage() {
         return;
       }
 
+      try {
+        const redirect = String(data.redirectUrl ?? "");
+        const abs = redirect.startsWith("http")
+          ? redirect
+          : `${window.location.origin}${redirect.startsWith("/") ? "" : "/"}${redirect}`;
+        const u = new URL(abs);
+        const ord = u.searchParams.get("order");
+        if (ord && result.data.email) {
+          sessionStorage.setItem(
+            "cuenta_postcompra",
+            JSON.stringify({
+              order: ord,
+              email: result.data.email,
+              name: result.data.name,
+              t: Date.now(),
+            })
+          );
+        }
+      } catch {
+        // ignorar si la URL de retorno no es parseable
+      }
+
       window.location.href = data.redirectUrl;
     } catch {
       toast.error("Error de conexión. Verifica tu internet e intenta nuevamente.");

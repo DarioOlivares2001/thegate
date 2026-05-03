@@ -3,12 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 const PROMO_BULLETS = [
-  "🎁 Tu carrito puede esconder regalos… descúbrelos al agregar productos",
-  "💰 Ahorra hasta 30% automáticamente en tu compra",
-  "👀 No todos ven las ofertas… solo aparecen cuando agregas productos",
-  "⚡ Ofertas exclusivas activadas en tu carrito",
-  "🐾 Premiamos a quienes compran para sus gatitos",
-  "🔥 Descuentos ocultos que desaparecen si sales",
+  "Productos seleccionados para gatos y hogares más limpios",
+  "Entrega rápida en Rancagua y alrededores",
+  "Beneficios exclusivos al agregar productos al carrito",
+  "Compra segura y atención directa por WhatsApp",
 ] as const;
 
 /** Duración de cada frase (coincide con `--promo-cycle` en CSS) */

@@ -35,7 +35,6 @@ export function StickerOffers({ hasOffers, onClick }: StickerOffersProps) {
         )}
         aria-label="Ver ofertas disponibles"
       >
-        <span aria-hidden>🎁</span>
         <span>Ofertas</span>
       </button>
 
@@ -49,7 +48,6 @@ export function StickerOffers({ hasOffers, onClick }: StickerOffersProps) {
         )}
         aria-label="Ver ofertas disponibles"
       >
-        <span aria-hidden>🎁</span>
         <span>Ver ofertas</span>
       </button>
     </>

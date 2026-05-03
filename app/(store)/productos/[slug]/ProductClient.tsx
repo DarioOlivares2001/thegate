@@ -705,8 +705,8 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             {displayStock === 0
               ? "Agotado"
               : hasOffer
-                ? "Agregar y desbloquear ofertas 🎁"
-                : "Agregar al carrito 🛒"}
+                ? "Agregar y desbloquear ofertas"
+                : "Agregar al carrito"}
           </Button>
           <p className="-mt-1 text-center text-xs font-medium text-[var(--color-text-muted)] md:hidden">
             Compra protegida • WhatsApp ⚡
@@ -744,11 +744,11 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
           <TrustBadges />
 
           {visibleUpsells.length > 0 && (
-            <section className="rounded-[var(--radius-lg)] border border-[var(--color-primary)]/25 bg-[var(--color-background)] px-3.5 py-3">
-              <p className="text-sm font-semibold text-[var(--color-text)]">
+            <section className="rounded-[var(--radius-lg)] border border-[var(--color-primary)]/25 bg-zinc-50 px-3.5 py-3">
+              <p className="text-sm font-semibold text-zinc-900">
                 🔥 Combínalo con esto y ahorra más
               </p>
-              <p className="mt-0.5 hidden text-xs text-[var(--color-text-muted)] sm:block">
+              <p className="mt-0.5 hidden text-xs text-zinc-600 sm:block">
                 💡 Este producto desbloquea descuentos en el carrito
               </p>
 
@@ -756,10 +756,10 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
                 {visibleUpsells.map((s) => (
                   <div
                     key={s.id}
-                    className="w-[44%] min-w-[44%] snap-start rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 sm:w-[200px] sm:min-w-[200px] lg:w-[220px] lg:min-w-[220px]"
+                    className="w-[44%] min-w-[44%] snap-start rounded-[var(--radius-md)] border border-zinc-200 bg-white p-2.5 shadow-sm sm:w-[200px] sm:min-w-[200px] lg:w-[220px] lg:min-w-[220px]"
                   >
                     <div className="flex flex-col gap-2">
-                      <div className="relative h-20 w-full overflow-hidden rounded-[var(--radius-sm)] bg-[var(--color-background)]">
+                      <div className="relative h-20 w-full overflow-hidden rounded-[var(--radius-sm)] bg-zinc-100">
                         {s.image ? (
                           <Image
                             src={s.image}
@@ -769,22 +769,22 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
                             className="object-cover"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[var(--color-text-muted)]">
+                          <div className="flex h-full w-full items-center justify-center text-zinc-400">
                             <ShoppingBag className="h-4 w-4" />
                           </div>
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="line-clamp-2 text-xs font-semibold leading-snug text-[var(--color-text)]">
+                        <p className="line-clamp-2 text-xs font-semibold leading-snug text-zinc-900">
                           {s.name}
                         </p>
                         <div className="mt-0.5 flex items-center gap-1.5">
                           {s.price > s.offerPrice && (
-                            <span className="text-[10px] text-[var(--color-text-muted)] line-through">
+                            <span className="text-[10px] text-zinc-500 line-through">
                               {formatPrice(s.price)}
                             </span>
                           )}
-                          <span className="text-xs font-extrabold text-[var(--color-text)]">
+                          <span className="text-xs font-extrabold text-zinc-900">
                             {formatPrice(s.offerPrice)}
                           </span>
                           {s.discountPercent > 0 && (
@@ -835,13 +835,13 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.45, ease: "easeOut" }}
-            className="mb-9 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.04)]"
+            className="mb-9 rounded-[var(--radius-lg)] border border-zinc-200 bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.04)]"
           >
             <div className="mb-2 flex items-center justify-between px-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-zinc-600">
                 Beneficios de tu compra
               </p>
-              <span className="h-px w-16 bg-[var(--color-border)]" />
+              <span className="h-px w-16 bg-zinc-200" />
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {benefits.map(({ icon: Icon, label }) => (
@@ -852,7 +852,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
                   viewport={{ once: true, margin: "-40px" }}
                   transition={{ duration: 0.32, ease: "easeOut" }}
                   whileHover={{ y: -2 }}
-                  className="group flex items-center gap-2.5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-background)]/70 px-3 py-2.5 text-sm text-[var(--color-text)] transition-colors hover:border-[var(--color-primary)]/25"
+                  className="group flex items-center gap-2.5 rounded-[var(--radius-md)] border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-800 transition-colors hover:border-zinc-300"
                 >
                   <motion.span
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-white shadow-sm"
@@ -891,16 +891,16 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.6, ease: "easeOut" }}
-            className="relative mt-10 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[0_14px_34px_rgba(0,0,0,0.06)] sm:p-6"
+            className="relative mt-10 overflow-hidden rounded-[var(--radius-lg)] border border-zinc-200 bg-white p-5 shadow-[0_14px_34px_rgba(0,0,0,0.06)] sm:p-6"
           >
             <div
               aria-hidden
               className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient"
             />
-            <h3 className="font-display text-xl font-bold text-[var(--color-text)] sm:text-2xl">
+            <h3 className="font-display text-xl font-bold text-zinc-900 sm:text-2xl">
               ¿Por qué comprarlo aquí?
             </h3>
-            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+            <p className="mt-1 text-sm text-zinc-600">
               Diseñamos una experiencia de compra simple, confiable y pensada para tu mascota.
             </p>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -912,10 +912,10 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
                   viewport={{ once: true, margin: "-50px" }}
                   transition={{ duration: 0.34, ease: "easeOut" }}
                   whileHover={{ y: -3, scale: 1.01 }}
-                  className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-background)] px-3.5 py-3.5 transition-colors hover:border-[var(--color-primary)]/25"
+                  className="rounded-[var(--radius-md)] border border-zinc-200 bg-zinc-50 px-3.5 py-3.5 transition-colors hover:border-zinc-300"
                 >
-                  <p className="text-sm font-semibold text-[var(--color-text)]">{item.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  <p className="text-sm font-semibold text-zinc-900">{item.title}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-600">
                     {item.description}
                   </p>
                 </motion.div>

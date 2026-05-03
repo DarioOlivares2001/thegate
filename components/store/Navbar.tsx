@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, ShoppingBag, X } from "lucide-react";
+import { Menu, ShoppingBag, User, X } from "lucide-react";
 import { useCartStore } from "@/lib/cart/store";
 import type { StoreSettingsView } from "@/lib/store-settings/getStoreSettings";
 
@@ -50,7 +50,28 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
   const openDrawer = useCartStore((s) => s.openDrawer);
   const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hasClienteSession, setHasClienteSession] = useState(false);
+
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const res = await fetch("/api/cuenta/session", { cache: "no-store" });
+        const data = await res.json();
+        if (!cancelled) setHasClienteSession(Boolean(data.loggedIn));
+      } catch {
+        if (!cancelled) setHasClienteSession(false);
+      }
+    };
+    sync();
+    window.addEventListener("focus", sync);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
 
   const mode = settings.branding_mode ?? "logo_and_text";
   const logoSrc = settings.logo_url || settings.logo_square_url;
@@ -113,6 +134,22 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
     </nav>
   );
 
+  const cuentaHref = hasClienteSession ? "/cuenta" : "/cuenta/login";
+  const cuentaAria = hasClienteSession ? "Ir a mi cuenta" : "Entrar a mi cuenta o iniciar sesión";
+
+  const cuentaLink = (opts: { onNavigate?: () => void }) => (
+    <Link
+      href={cuentaHref}
+      onClick={opts.onNavigate}
+      title="Mi cuenta"
+      aria-label={cuentaAria}
+      className="rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40"
+      style={{ color: navbarTextColor }}
+    >
+      <User className="h-6 w-6" strokeWidth={1.75} />
+    </Link>
+  );
+
   const cart = (
     <button
       onClick={openDrawer}
@@ -122,7 +159,7 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
           : "Abrir carrito"
       }
       suppressHydrationWarning
-      className="relative -mr-2 rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40"
+      className="relative rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40 md:-mr-2"
       style={{ color: navbarTextColor }}
     >
       <ShoppingBag className="h-6 w-6" strokeWidth={1.75} />
@@ -138,6 +175,25 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
     </button>
   );
 
+  const cuentaHintDesktop = (
+    <div className="hidden max-w-[148px] flex-col items-end justify-center pr-1 text-right md:flex lg:max-w-[200px]">
+      <span
+        className="text-[10px] font-medium leading-snug text-[var(--color-text-muted)]"
+        style={{ opacity: 0.92 }}
+      >
+        Entra a tu cuenta y accede a descuentos exclusivos
+      </span>
+    </div>
+  );
+
+  const accountAndCart = (
+    <div className="flex items-center justify-end gap-0.5 md:gap-2">
+      {cuentaHintDesktop}
+      {cuentaLink({})}
+      {cart}
+    </div>
+  );
+
   const { brandSlot, menuSlot, cartSlot } = placeSlots(
     settings.navbar_brand_position,
     settings.navbar_menu_position
@@ -149,7 +205,7 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
   };
   bySlot[brandSlot] = brand;
   bySlot[menuSlot] = menu;
-  bySlot[cartSlot] = cart;
+  bySlot[cartSlot] = accountAndCart;
 
   const mobileBrandAlign =
     settings.navbar_brand_position === "right"
@@ -178,7 +234,10 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
 
           <div className={`flex min-w-0 ${mobileBrandAlign}`}>{brand}</div>
 
-          <div className="justify-self-end">{cart}</div>
+          <div className="justify-self-end flex items-center gap-0.5">
+            {cuentaLink({ onNavigate: () => setMobileOpen(false) })}
+            {cart}
+          </div>
         </div>
 
         {mobileOpen && (
@@ -199,6 +258,21 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
                 style={{ color: navbarTextColor }}
               >
                 Nosotros
+              </Link>
+              <p
+                className="mt-1 border-t border-[var(--color-border)]/60 px-3 pt-2 text-[10px] leading-snug text-[var(--color-text-muted)]"
+                style={{ opacity: 0.95 }}
+              >
+                Entra a tu cuenta y accede a descuentos exclusivos
+              </p>
+              <Link
+                href={cuentaHref}
+                onClick={() => setMobileOpen(false)}
+                className="mt-0.5 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--color-border)]/30"
+                style={{ color: navbarTextColor }}
+              >
+                <User className="h-4 w-4 shrink-0 opacity-80" strokeWidth={1.75} aria-hidden />
+                Mi cuenta
               </Link>
               <button
                 type="button"

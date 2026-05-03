@@ -115,6 +115,27 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["customers"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["customers"]["Insert"]>;
       };
+      clientes: {
+        Row: {
+          id: string;
+          nombre: string;
+          email: string;
+          telefono: string | null;
+          rut_numero: string | null;
+          rut_dv: string | null;
+          direccion: string | null;
+          comuna: string | null;
+          total_orders: number;
+          total_spent: number;
+          last_order_at: string | null;
+          password_hash: string | null;
+          registered_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["clientes"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["clientes"]["Insert"]>;
+      };
       store_settings: {
         Row: {
           id: string;
@@ -174,6 +195,7 @@ export type Product = Database["public"]["Tables"]["products"]["Row"];
 export type Order = Database["public"]["Tables"]["orders"]["Row"];
 export type Review = Database["public"]["Tables"]["reviews"]["Row"];
 export type Customer = Database["public"]["Tables"]["customers"]["Row"];
+export type Cliente = Database["public"]["Tables"]["clientes"]["Row"];
 export type StoreSettings = Database["public"]["Tables"]["store_settings"]["Row"];
 
 export interface ShippingAddress {

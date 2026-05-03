@@ -1,11 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useCartStore } from "@/lib/cart/store";
 import { Button } from "@/components/ui/Button";
+
+const POST_COMPRA_STORAGE = "cuenta_postcompra";
+const POST_COMPRA_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ─── Animated check SVG ───────────────────────────────────────────────────────
 
@@ -52,6 +55,33 @@ function ConfirmationContent() {
   const order = searchParams.get("order");
   const cleared = useRef(false);
   const clear = useCartStore((s) => s.clear);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!order) {
+      setCustomerEmail(null);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(POST_COMPRA_STORAGE);
+      if (!raw) {
+        setCustomerEmail(null);
+        return;
+      }
+      const d = JSON.parse(raw) as { order?: string; email?: string; t?: number };
+      if (d.order !== order || !d.email) {
+        setCustomerEmail(null);
+        return;
+      }
+      if (typeof d.t === "number" && Date.now() - d.t > POST_COMPRA_MAX_AGE_MS) {
+        setCustomerEmail(null);
+        return;
+      }
+      setCustomerEmail(d.email);
+    } catch {
+      setCustomerEmail(null);
+    }
+  }, [order]);
 
   useEffect(() => {
     if (cleared.current) return;
@@ -88,6 +118,25 @@ function ConfirmationContent() {
           Te enviaremos los detalles a tu email en los próximos minutos.
         </p>
 
+        {customerEmail && order && (
+          <div className="mt-2 w-full max-w-md rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4 text-left shadow-sm">
+            <p className="text-sm font-medium text-[var(--color-text)]">
+              Crea tu cuenta y recibe descuentos exclusivos en tus próximas compras
+            </p>
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+              Es opcional: tu compra ya está confirmada con o sin cuenta.
+            </p>
+            <Link
+              href={`/cuenta/crear?email=${encodeURIComponent(customerEmail)}&order=${encodeURIComponent(order)}`}
+              className="mt-4 inline-flex w-full justify-center"
+            >
+              <Button type="button" size="lg" fullWidth variant="secondary">
+                Crear mi cuenta
+              </Button>
+            </Link>
+          </div>
+        )}
+
         <div className="mt-2 flex flex-col items-center gap-3 sm:flex-row">
           <Link href="/productos">
             <Button size="lg">Seguir comprando</Button>
@@ -111,7 +160,13 @@ function ConfirmationContent() {
 
 export default function ConfirmacionPage() {
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--color-text-muted)]">
+          Cargando…
+        </div>
+      }
+    >
       <ConfirmationContent />
     </Suspense>
   );

@@ -122,7 +122,14 @@ export function ProductCard({ product, priority = false, selectedVariant }: Prod
           fullWidth
           className="mt-1"
         >
-          {product.stock === 0 ? "Agotado" : "Agregar y desbloquear 🎁"}
+          {product.stock === 0 ? (
+            "Agotado"
+          ) : (
+            <>
+              <span className="sm:hidden">Agregar</span>
+              <span className="hidden sm:inline">Agregar y desbloquear</span>
+            </>
+          )}
         </Button>
       </div>
     </article>

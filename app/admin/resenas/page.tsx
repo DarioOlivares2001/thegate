@@ -30,7 +30,8 @@ async function approveReviewAction(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
 
-  const { error } = await createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (createAdminClient() as any)
     .from("reviews")
     .update({ status: "approved", active: true })
     .eq("id", id);
@@ -49,7 +50,8 @@ async function rejectReviewAction(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
 
-  const { error } = await createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (createAdminClient() as any)
     .from("reviews")
     .update({ status: "rejected", active: false })
     .eq("id", id);
@@ -67,7 +69,8 @@ async function hideApprovedReviewAction(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
 
-  const { error } = await createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (createAdminClient() as any)
     .from("reviews")
     .update({ active: false })
     .eq("id", id)
