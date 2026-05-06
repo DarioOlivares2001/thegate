@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { CuentaPasswordToggleSuffix } from "@/components/cuenta/CuentaPasswordToggleSuffix";
 import { toast } from "@/components/ui/Toast";
 import { normalizeClienteEmail } from "@/lib/clientes/upsertClienteFromOrder";
 
@@ -32,6 +33,8 @@ function CrearCuentaForm() {
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ password?: string; confirm?: string }>({});
 
@@ -84,9 +87,11 @@ function CrearCuentaForm() {
         } catch {
           // ignore
         }
+        const recoveryPast = Boolean((data as { recoveryHadPastOrders?: boolean }).recoveryHadPastOrders);
         const qs = new URLSearchParams();
         if (nombreOk) qs.set("nombre", nombreOk);
         qs.set("email", emailNorm);
+        if (recoveryPast) qs.set("recovery", "1");
         router.push(`/cuenta/bienvenida?${qs.toString()}`);
         return;
       }
@@ -125,19 +130,31 @@ function CrearCuentaForm() {
         <Input label="Email" type="email" value={emailNorm} readOnly aria-readonly />
         <Input
           label="Contraseña"
-          type="password"
+          type={showPassword ? "text" : "password"}
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={fieldErrors.password}
+          suffix={
+            <CuentaPasswordToggleSuffix
+              visible={showPassword}
+              onToggle={() => setShowPassword((p) => !p)}
+            />
+          }
         />
         <Input
           label="Confirmar contraseña"
-          type="password"
+          type={showConfirmPassword ? "text" : "password"}
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           error={fieldErrors.confirm}
+          suffix={
+            <CuentaPasswordToggleSuffix
+              visible={showConfirmPassword}
+              onToggle={() => setShowConfirmPassword((p) => !p)}
+            />
+          }
         />
         <Button type="submit" size="lg" fullWidth loading={loading}>
           Crear mi cuenta

@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/Badge";
 import { StickyAddToCart } from "@/components/store/StickyAddToCart";
 import { TrustBadges } from "@/components/store/TrustBadges";
 import { ProductTieredDiscount } from "@/components/store/ProductTieredDiscount";
+import { normalizeProductCategory } from "@/lib/product/categories";
 import type { Database, Product, Review } from "@/lib/supabase/types";
 
 interface Props {
@@ -543,8 +544,8 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
 
           {/* Badges */}
           <div className="flex flex-wrap items-center gap-2">
-            {product.category && (
-              <Badge variant="default">{product.category}</Badge>
+            {normalizeProductCategory(product.category) && (
+              <Badge variant="default">{normalizeProductCategory(product.category)}</Badge>
             )}
             {hasOffer && <Badge variant="danger">−{discount}%</Badge>}
             {displayStock > 0 && displayStock <= 5 && (

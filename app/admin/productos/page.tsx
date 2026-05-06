@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Plus, Pencil, Trash2, PackageOpen } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeProductCategory } from "@/lib/product/categories";
 import { formatPrice } from "@/lib/utils/format";
 import { deleteProductAction } from "./nuevo/actions";
 
@@ -142,7 +143,7 @@ export default async function AdminProductosPage() {
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 text-zinc-600">{p.category ?? "—"}</td>
+                    <td className="px-4 py-3 text-zinc-600">{normalizeProductCategory(p.category) || "—"}</td>
 
                     <td className="px-4 py-3">
                       <span

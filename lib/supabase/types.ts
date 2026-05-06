@@ -130,11 +130,37 @@ export interface Database {
           last_order_at: string | null;
           password_hash: string | null;
           registered_at: string | null;
+          reset_token: string | null;
+          reset_token_expires: string | null;
+          profile_recovery_ack_at: string | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["clientes"]["Row"], "id" | "created_at" | "updated_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["clientes"]["Row"],
+          "id" | "created_at" | "updated_at" | "profile_recovery_ack_at"
+        > & { profile_recovery_ack_at?: string | null };
         Update: Partial<Database["public"]["Tables"]["clientes"]["Insert"]>;
+      };
+      cliente_direcciones: {
+        Row: {
+          id: string;
+          cliente_id: string;
+          nombre: string;
+          direccion: string;
+          comuna: string;
+          region: string;
+          referencia: string | null;
+          telefono: string | null;
+          is_default: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["cliente_direcciones"]["Row"],
+          "id" | "created_at" | "updated_at"
+        >;
+        Update: Partial<Database["public"]["Tables"]["cliente_direcciones"]["Insert"]>;
       };
       store_settings: {
         Row: {

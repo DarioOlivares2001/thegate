@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
@@ -288,8 +288,52 @@ export default function CheckoutPage() {
     loaded: boolean;
     supportWhatsapp: string;
   }>({ loaded: false, supportWhatsapp: "" });
+  const checkoutPrefillDone = useRef(false);
+  const [cuentaLoggedIn, setCuentaLoggedIn] = useState(false);
+  const [saveShippingToCuenta, setSaveShippingToCuenta] = useState(false);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (checkoutPrefillDone.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/cuenta/checkout-prefill", { cache: "no-store" });
+        if (!r.ok || cancelled) return;
+        const j = (await r.json()) as {
+          loggedIn?: boolean;
+          cliente?: { name: string; email: string; phone: string };
+          defaultAddress?: {
+            address: string;
+            city: string;
+            region: string;
+          } | null;
+        };
+        if (!j.loggedIn || !j.cliente || cancelled) return;
+        checkoutPrefillDone.current = true;
+        setCuentaLoggedIn(true);
+        setForm((prev) => ({
+          ...prev,
+          email: prev.email.trim() ? prev.email : j.cliente!.email,
+          name: prev.name.trim() ? prev.name : j.cliente!.name,
+          phone: prev.phone.trim() ? prev.phone : j.cliente!.phone,
+          ...(j.defaultAddress
+            ? {
+                address: prev.address.trim() ? prev.address : j.defaultAddress.address,
+                city: prev.city.trim() ? prev.city : j.defaultAddress.city,
+                region: prev.region.trim() ? prev.region : j.defaultAddress.region,
+              }
+            : {}),
+        }));
+      } catch {
+        // sin prefill
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -386,6 +430,27 @@ export default function CheckoutPage() {
     setLoading(true);
     try {
       pixelEvents.initiateCheckout(items);
+
+      if (saveShippingToCuenta && cuentaLoggedIn) {
+        try {
+          const sr = await fetch("/api/cuenta/checkout-save-shipping", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: result.data.name,
+              phone: result.data.phone,
+              address: result.data.address,
+              city: result.data.city,
+              region: result.data.region,
+            }),
+          });
+          if (!sr.ok) {
+            toast.error("No se guardaron los datos en tu cuenta; seguirás al pago con lo ingresado aquí.");
+          }
+        } catch {
+          toast.error("No se guardaron los datos en tu cuenta; seguirás al pago con lo ingresado aquí.");
+        }
+      }
 
       const res = await fetch("/api/flow/create", {
         method: "POST",
@@ -551,6 +616,11 @@ export default function CheckoutPage() {
             <h2 className="font-display text-lg font-bold text-[var(--color-text)]">
               Dirección de envío
             </h2>
+            <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+              {cuentaLoggedIn
+                ? "Si tenías una dirección principal, rellenamos el formulario. Puedes cambiar los datos solo para este pedido. Para actualizar tu cuenta, marca la opción de abajo o edita en «Mis direcciones»."
+                : "Completa tu dirección de envío. No necesitas cuenta para pagar; si más adelante creas cuenta o inicias sesión, podrás guardar direcciones en «Mi cuenta»."}
+            </p>
             <Input
               label="Dirección"
               type="text"
@@ -583,6 +653,19 @@ export default function CheckoutPage() {
                 ))}
               </FormSelect>
             </div>
+            {cuentaLoggedIn ? (
+              <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)]/90 bg-[var(--color-surface)] px-3.5 py-3 text-sm text-[var(--color-text)]">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                  checked={saveShippingToCuenta}
+                  onChange={(e) => setSaveShippingToCuenta(e.target.checked)}
+                />
+                <span className="leading-snug">
+                  Guardar estos datos para próximas compras (actualiza tu perfil y dirección principal en la cuenta).
+                </span>
+              </label>
+            ) : null}
           </section>
 
           {/* CTA */}

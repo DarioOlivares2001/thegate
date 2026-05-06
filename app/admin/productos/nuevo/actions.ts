@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeProductCategory } from "@/lib/product/categories";
 
 export async function createProductAction(
   formData: FormData
@@ -139,6 +140,7 @@ export async function createProductAction(
     return { error: "Ingresa un precio válido." };
   }
 
+  const normalizedCategory = normalizeProductCategory(formData.get("category") as string);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: productData, error } = await (supabase as any)
     .from("products")
@@ -150,7 +152,7 @@ export async function createProductAction(
     compare_at_price: baseCompareAt,
     cost_price: hasVariants ? null : costPrice,
     stock: baseStock,
-    category: (formData.get("category") as string) || null,
+    category: normalizedCategory || null,
     images,
     variants: hasVariants ? null : variants,
     has_variants: hasVariants,
@@ -330,6 +332,7 @@ export async function updateProductAction(
     return { error: "Ingresa un precio válido." };
   }
 
+  const normalizedCategory = normalizeProductCategory(formData.get("category") as string);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("products").update({
     name: (formData.get("name") as string).trim(),
@@ -339,7 +342,7 @@ export async function updateProductAction(
     compare_at_price: baseCompareAt,
     cost_price: hasVariants ? null : costPrice,
     stock: baseStock,
-    category: (formData.get("category") as string) || null,
+    category: normalizedCategory || null,
     images,
     variants: hasVariants ? null : variants,
     has_variants: hasVariants,

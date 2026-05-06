@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { clsx } from "clsx";
 import {
   LayoutDashboard,
@@ -12,6 +12,7 @@ import {
   Package,
   Settings,
   MessageSquareQuote,
+  Store,
   Menu,
   X,
   ExternalLink,
@@ -61,15 +62,29 @@ const NAV = [
 function SidebarContent({
   onClose,
   settings,
+  adminRole,
 }: {
   onClose?: () => void;
   settings: StoreSettingsView;
+  adminRole: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const isActive = (href: string) => pathname.startsWith(href);
 
   const brandNameStyle = adminSidebarBrandNameStyle(settings);
+
+  async function handleLogout() {
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+    } catch {
+      // redirigimos de todas formas
+    }
+    onClose?.();
+    router.push("/admin/login");
+    router.refresh();
+  }
 
   return (
     <aside className="flex h-full w-64 flex-col bg-zinc-950">
@@ -128,32 +143,60 @@ function SidebarContent({
               </Link>
             </li>
           ))}
+          {adminRole === "owner" ? (
+            <li>
+              <Link
+                href="/admin/usuarios"
+                onClick={onClose}
+                className={clsx(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  isActive("/admin/usuarios")
+                    ? "bg-white text-zinc-950"
+                    : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                )}
+              >
+                <Users className="h-4 w-4 shrink-0" />
+                Usuarios admin
+              </Link>
+            </li>
+          ) : null}
         </ul>
       </nav>
 
       {/* Store link */}
       <div className="border-t border-zinc-800 p-3">
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+        >
+          Cerrar sesión
+        </button>
         <Link
           href="/"
           target="_blank"
-          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between gap-2 rounded-lg border border-zinc-700 bg-zinc-900/70 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-800 hover:text-white"
         >
-          <ExternalLink className="h-3.5 w-3.5" />
-          Ver tienda
+          <span className="flex items-center gap-2">
+            <Store className="h-3.5 w-3.5" />
+            Ver tienda pública
+          </span>
+          <ExternalLink className="h-3.5 w-3.5 opacity-85" />
         </Link>
       </div>
     </aside>
   );
 }
 
-export function AdminSidebar({ settings }: { settings: StoreSettingsView }) {
+export function AdminSidebar({ settings, adminRole }: { settings: StoreSettingsView; adminRole: string }) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       {/* Desktop — fixed */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex">
-        <SidebarContent settings={settings} />
+        <SidebarContent settings={settings} adminRole={adminRole} />
       </div>
 
       {/* Mobile — hamburger */}
@@ -182,7 +225,7 @@ export function AdminSidebar({ settings }: { settings: StoreSettingsView }) {
               >
                 <X className="h-4 w-4" />
               </button>
-              <SidebarContent settings={settings} onClose={() => setOpen(false)} />
+              <SidebarContent settings={settings} adminRole={adminRole} onClose={() => setOpen(false)} />
             </div>
           </div>
         </>

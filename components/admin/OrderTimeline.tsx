@@ -1,11 +1,13 @@
 "use client";
 
-import { CheckCircle2, ClipboardList, PackageSearch, Truck, Home } from "lucide-react";
+import { CheckCircle2, ClipboardList, PackageSearch, Truck, Home, Crown, Sparkles } from "lucide-react";
+import { normalizeOrderStatusKey } from "@/lib/orders/formatOrderStatus";
 
 type TimelineVisualState = "completed" | "current" | "pending";
 
 interface Step {
   title: string;
+  shortTitle: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
 }
@@ -13,31 +15,35 @@ interface Step {
 const STEPS: Step[] = [
   {
     title: "Pedido recibido",
+    shortTitle: "Recibido",
     description: "Pago registrado y orden creada.",
     icon: ClipboardList,
   },
   {
     title: "Preparando",
-    description: "Estamos alistando tus productos.",
+    shortTitle: "Prep.",
+    description: "Alistando productos.",
     icon: PackageSearch,
   },
   {
     title: "En despacho",
-    description: "Pedido en camino al destino.",
+    shortTitle: "Envío",
+    description: "En camino al destino.",
     icon: Truck,
   },
   {
     title: "Entregado",
-    description: "Pedido recibido por el cliente.",
+    shortTitle: "OK",
+    description: "Recepción confirmada.",
     icon: Home,
   },
 ];
 
 function getCurrentStep(status: string): number | null {
-  const normalized = status === "ready_to_ship" ? "shipped" : status;
-  if (normalized === "cancelled") return null;
+  const normalized = normalizeOrderStatusKey(status);
+  if (normalized === "cancelled" || normalized === "failed" || normalized === "refunded") return null;
   if (normalized === "pending" || normalized === "paid") return 0;
-  if (normalized === "preparing") return 1;
+  if (normalized === "preparing" || normalized === "processing") return 1;
   if (normalized === "shipped") return 2;
   if (normalized === "delivered") return 3;
   return 0;
@@ -52,45 +58,46 @@ function getStepState(stepIndex: number, currentStep: number): TimelineVisualSta
 function clsByState(state: TimelineVisualState) {
   if (state === "completed") {
     return {
-      node: "border-green-500 bg-green-500 text-white",
+      node: "border-emerald-500 bg-emerald-500 text-white shadow-sm",
       icon: "text-white",
-      line: "bg-green-500",
       title: "text-zinc-900",
-      desc: "text-zinc-600",
     };
   }
   if (state === "current") {
     return {
-      node: "border-zinc-900 bg-zinc-900 text-white ring-4 ring-zinc-200",
+      node: "border-zinc-900 bg-zinc-900 text-white shadow-md ring-[3px] ring-zinc-200",
       icon: "text-white",
-      line: "bg-zinc-200",
       title: "text-zinc-900",
-      desc: "text-zinc-600",
     };
   }
   return {
-    node: "border-zinc-200 bg-white text-zinc-400",
+    node: "border-zinc-200 bg-white text-zinc-400 shadow-sm",
     icon: "text-zinc-400",
-    line: "bg-zinc-200",
     title: "text-zinc-500",
-    desc: "text-zinc-400",
   };
 }
 
-export function OrderTimeline({ status }: { status: string }) {
+/** Nodo último paso cuando el pedido ya está entregado (coronación visual). */
+const DELIVERED_CELEBRATION = {
+  node:
+    "animate-order-timeline-celebrate border-2 border-amber-400 bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-200 text-amber-900 ring-[3px] ring-amber-200/90 ring-offset-2 ring-offset-white",
+  icon: "text-amber-900",
+  title: "text-amber-950",
+};
+
+export function OrderTimeline({ status, compact = false }: { status: string; compact?: boolean }) {
   const currentStep = getCurrentStep(status);
-  const isDelivered = currentStep === 3;
+  const normalizedStatus = normalizeOrderStatusKey(status);
+  const isDeliveredCelebration =
+    normalizedStatus === "delivered" && currentStep !== null && currentStep >= 3;
 
   if (currentStep === null) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-        <div className="flex items-start gap-2.5">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 text-red-600" />
+      <div className={`rounded-lg border border-red-200 bg-red-50 ${compact ? "px-3 py-2" : "p-5 md:p-6"}`}>
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className={`mt-0.5 shrink-0 text-red-600 ${compact ? "h-3.5 w-3.5" : "h-5 w-5"}`} />
           <div>
-            <p className="text-sm font-semibold text-red-700">Pedido cancelado</p>
-            <p className="mt-0.5 text-xs text-red-600">
-              Este pedido fue cancelado y no sigue el flujo de tracking.
-            </p>
+            <p className={`font-semibold text-red-800 ${compact ? "text-xs" : "text-sm"}`}>Pedido cancelado</p>
           </div>
         </div>
       </div>
@@ -98,52 +105,88 @@ export function OrderTimeline({ status }: { status: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-      <div className="overflow-x-auto">
-        <div className="grid min-w-[760px] grid-cols-4 gap-0">
-          {STEPS.map((step, idx) => {
-            const visualState = getStepState(idx, currentStep);
-            const cls = clsByState(visualState);
-            const Icon = step.icon;
-            const isDone = visualState === "completed";
-            const isDeliveredMilestone = isDelivered && idx === STEPS.length - 1;
+    <div
+      className={`relative rounded-xl border border-zinc-200/90 bg-gradient-to-br from-white to-zinc-50/90 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)] ${compact ? "py-3 pl-3 pr-2" : "p-6 md:p-7"} ${isDeliveredCelebration && !compact ? "overflow-hidden" : ""}`}
+    >
+      {isDeliveredCelebration && !compact ? (
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(251,191,36,0.18),transparent_65%)]"
+          aria-hidden
+        />
+      ) : null}
 
-            return (
-              <div key={step.title} className="relative px-2">
-                {idx < STEPS.length - 1 && (
-                  <div className="absolute left-[calc(50%+1.5rem)] right-[-50%] top-5 h-0.5">
-                    <div className={`h-full w-full ${idx < currentStep ? "bg-green-500" : cls.line}`} />
+      <div className={`relative ${compact ? "pb-1" : "pb-2"}`}>
+        <div className="overflow-x-auto">
+          <div
+            className={`grid grid-cols-4 gap-0 ${compact ? "min-w-[520px] px-0" : "min-w-[760px] px-1 md:min-w-[820px]"}`}
+          >
+            {STEPS.map((step, idx) => {
+              const visualState = getStepState(idx, currentStep);
+              const baseCls = clsByState(visualState);
+              const isLastDelivered =
+                isDeliveredCelebration && idx === STEPS.length - 1 && visualState === "current";
+              const Icon = isLastDelivered ? Crown : step.icon;
+              const isDone = visualState === "completed";
+              const label = compact ? step.shortTitle : step.title;
+
+              const cls = isLastDelivered
+                ? {
+                    node: DELIVERED_CELEBRATION.node,
+                    icon: DELIVERED_CELEBRATION.icon,
+                    title: DELIVERED_CELEBRATION.title,
+                  }
+                : baseCls;
+
+              const nodeSize = compact ? "h-6 w-6" : "h-12 w-12";
+              const iconSize = compact ? "h-3 w-3" : "h-6 w-6";
+              const lineTop = compact ? "top-3" : "top-6";
+              const lineHeight = compact ? "h-0.5" : "h-1";
+
+              return (
+                <div key={step.title} className={`relative ${compact ? "px-0.5" : "px-3 md:px-4"}`}>
+                  {idx < STEPS.length - 1 && (
+                    <div
+                      className={`absolute right-[-50%] ${lineTop} ${compact ? "left-[calc(50%+0.75rem)]" : "left-[calc(50%+1.5rem)]"}`}
+                    >
+                      <div
+                        className={`${lineHeight} w-full rounded-full ${idx < currentStep ? "bg-emerald-500" : "bg-zinc-200"}`}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col items-center text-center">
+                    <div
+                      className={`relative z-10 flex items-center justify-center rounded-full border-2 ${cls.node} ${nodeSize}`}
+                      aria-current={visualState === "current" ? "step" : undefined}
+                    >
+                      <Icon className={`${iconSize} ${cls.icon}`} />
+                      {isLastDelivered && !compact ? (
+                        <Sparkles
+                          className="pointer-events-none absolute right-1 top-1 h-3.5 w-3.5 text-amber-600 drop-shadow"
+                          aria-hidden
+                          strokeWidth={2}
+                        />
+                      ) : null}
+                    </div>
+
+                    <p
+                      className={`max-w-[10rem] font-semibold leading-tight ${cls.title} ${
+                        compact ? "mt-1 max-w-[4.25rem] text-[10px] tracking-tight" : "mt-4 text-sm md:text-base"
+                      }`}
+                    >
+                      {isLastDelivered && !compact ? step.title : label}
+                      {isDone && !compact && !isLastDelivered ? " ✓" : ""}
+                    </p>
+                    {!compact && !isLastDelivered ? (
+                      <p className="mt-2 max-w-[180px] text-xs leading-relaxed text-zinc-500 md:max-w-[200px]">
+                        {step.description}
+                      </p>
+                    ) : null}
                   </div>
-                )}
-
-                <div className="flex flex-col items-center text-center">
-                  <div
-                    className={`relative z-10 flex items-center justify-center rounded-full border ${cls.node} ${
-                      isDeliveredMilestone
-                        ? "h-12 w-12 border-emerald-500 bg-emerald-500 text-white shadow-[0_0_0_6px_rgba(16,185,129,0.2),0_0_26px_rgba(16,185,129,0.55)] animate-[pulse_2s_ease-in-out_infinite]"
-                        : "h-10 w-10"
-                    }`}
-                    aria-current={visualState === "current" ? "step" : undefined}
-                  >
-                    {isDeliveredMilestone && (
-                      <span className="absolute -top-3 text-sm leading-none" aria-hidden>
-                        👑
-                      </span>
-                    )}
-                    <Icon className={`h-4 w-4 ${cls.icon}`} />
-                  </div>
-
-                  <p className={`mt-3 text-sm font-semibold ${cls.title}`}>
-                    {step.title}
-                    {isDone ? " ✓" : ""}
-                  </p>
-                  <p className={`mt-1 max-w-[160px] text-xs leading-relaxed ${cls.desc}`}>
-                    {step.description}
-                  </p>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

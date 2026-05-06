@@ -300,3 +300,24 @@ a {
 .promo-ticker-bar:hover .promo-ticker-bullet {
   animation-play-state: paused;
 }
+
+/* Admin: pedido entregado — efecto dorado en timeline */
+@keyframes order-timeline-celebrate-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.55),
+      0 8px 28px -4px rgba(245, 158, 11, 0.42);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.78),
+      0 10px 40px -2px rgba(245, 158, 11, 0.55);
+  }
+}
+
+@layer utilities {
+  .animate-order-timeline-celebrate {
+    animation: order-timeline-celebrate-glow 2.4s ease-in-out infinite;
+  }
+}

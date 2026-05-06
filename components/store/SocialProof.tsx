@@ -2,20 +2,17 @@ const TESTIMONIALS = [
   {
     name: "Camila Rojas",
     city: "Santiago",
-    comment:
-      "La arena sanitaria controla mejor el olor de lo que esperaba y el formato rinde bastante en casa con dos gatos.",
+    comment: "Notamos menos olor desde la primera bolsa. Casa con dos gatos y mucho más fresca.",
   },
   {
     name: "Matías Fuentes",
     city: "Valparaíso",
-    comment:
-      "Compré arenero con alfombra atrapa arena y de verdad se nota menos desorden alrededor. Fue una muy buena combinación.",
+    comment: "Menos arena fuera del arenero y la combinación con alfombra atrapa arena vale la pena.",
   },
   {
     name: "Valentina Mora",
     city: "Rancagua",
-    comment:
-      "El spray antiolor ayuda entre limpiezas y el pedido llegó rápido a Rancagua. Todo venía bien presentado.",
+    comment: "Pedido rápido en Rancagua y productos que sí cumplen para el día a día.",
   },
 ];
 
@@ -36,7 +33,7 @@ export function SocialProof() {
     <section className="bg-zinc-50">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <h2 className="font-display text-2xl font-bold tracking-tight text-[var(--color-text)] sm:text-3xl text-center mb-10">
-          Lo que dicen nuestros clientes
+          Más de 500 clientes en Rancagua ya cambiaron su arena
         </h2>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {TESTIMONIALS.map(({ name, city, comment }) => (

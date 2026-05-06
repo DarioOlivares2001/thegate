@@ -3,6 +3,7 @@ import { hashSync } from "bcryptjs";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeClienteEmail } from "@/lib/clientes/upsertClienteFromOrder";
+import { recoverClienteFromOrderHistory } from "@/lib/clientes/recoverFromOrderHistory";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
 export const runtime = "nodejs";
@@ -124,11 +125,24 @@ export async function POST(request: Request) {
       }
     }
 
+    const { data: clienteAfter } = await admin
+      .from("clientes")
+      .select("id")
+      .eq("email", normEmail)
+      .maybeSingle();
+
+    let recoveryHadPastOrders = false;
+    if (clienteAfter?.id) {
+      const rec = await recoverClienteFromOrderHistory(admin, String(clienteAfter.id), normEmail);
+      recoveryHadPastOrders = rec.pastOrdersCount > 0;
+    }
+
     const settings = await getStoreSettings();
     return NextResponse.json({
       ok: true as const,
       nombre: nombre || "Cliente",
       storeName: settings.store_name,
+      recoveryHadPastOrders,
     });
   } catch (e) {
     console.error("[cuenta-registro-public] excepción", e);

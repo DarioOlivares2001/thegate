@@ -3,6 +3,7 @@ import { hashSync } from "bcryptjs";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeClienteEmail } from "@/lib/clientes/upsertClienteFromOrder";
+import { recoverClienteFromOrderHistory } from "@/lib/clientes/recoverFromOrderHistory";
 import { sendWelcomeEmail } from "@/lib/email/sendWelcomeEmail";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
@@ -109,6 +110,18 @@ export async function POST(request: Request) {
       }
     }
 
+    const { data: clienteAfter } = await admin
+      .from("clientes")
+      .select("id")
+      .eq("email", normEmail)
+      .maybeSingle();
+
+    let recoveryHadPastOrders = false;
+    if (clienteAfter?.id) {
+      const rec = await recoverClienteFromOrderHistory(admin, String(clienteAfter.id), normEmail);
+      recoveryHadPastOrders = rec.pastOrdersCount > 0;
+    }
+
     const settings = await getStoreSettings();
 
     try {
@@ -127,6 +140,7 @@ export async function POST(request: Request) {
       ok: true as const,
       nombre,
       storeName: settings.store_name,
+      recoveryHadPastOrders,
     });
   } catch (e) {
     console.error("[cuenta-registro] excepción", e);

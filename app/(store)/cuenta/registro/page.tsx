@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { CuentaPasswordToggleSuffix } from "@/components/cuenta/CuentaPasswordToggleSuffix";
 import { toast } from "@/components/ui/Toast";
 import { normalizeClienteEmail } from "@/lib/clientes/upsertClienteFromOrder";
+import { dispatchClienteSessionChanged } from "@/lib/cuenta/session-events";
 
 const STORAGE_BIENVENIDA = "cuenta_bienvenida_payload";
 
@@ -28,6 +30,8 @@ export default function CuentaRegistroPage() {
   const [telefono, setTelefono] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     nombre?: string;
@@ -82,6 +86,8 @@ export default function CuentaRegistroPage() {
         return;
       }
 
+      const recoveryPast = Boolean((data as { recoveryHadPastOrders?: boolean }).recoveryHadPastOrders);
+
       const loginRes = await fetch("/api/cuenta/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -96,6 +102,7 @@ export default function CuentaRegistroPage() {
         return;
       }
 
+      dispatchClienteSessionChanged();
       toast.success(`¡Ya eres parte de ${data.storeName}!`);
 
       try {
@@ -113,6 +120,7 @@ export default function CuentaRegistroPage() {
       const qs = new URLSearchParams();
       qs.set("nombre", String(data.nombre ?? "").trim() || "Cliente");
       qs.set("email", normalizeClienteEmail(parsed.data.email));
+      if (recoveryPast) qs.set("recovery", "1");
       router.push(`/cuenta/bienvenida?${qs.toString()}`);
       router.refresh();
     } catch {
@@ -156,19 +164,31 @@ export default function CuentaRegistroPage() {
         />
         <Input
           label="Contraseña"
-          type="password"
+          type={showPassword ? "text" : "password"}
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={fieldErrors.password}
+          suffix={
+            <CuentaPasswordToggleSuffix
+              visible={showPassword}
+              onToggle={() => setShowPassword((prev) => !prev)}
+            />
+          }
         />
         <Input
           label="Confirmar contraseña"
-          type="password"
+          type={showConfirmPassword ? "text" : "password"}
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           error={fieldErrors.confirm}
+          suffix={
+            <CuentaPasswordToggleSuffix
+              visible={showConfirmPassword}
+              onToggle={() => setShowConfirmPassword((prev) => !prev)}
+            />
+          }
         />
         <Button type="submit" size="lg" fullWidth loading={loading}>
           Crear cuenta

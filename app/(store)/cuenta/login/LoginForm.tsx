@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { CuentaPasswordToggleSuffix } from "@/components/cuenta/CuentaPasswordToggleSuffix";
 import { toast } from "@/components/ui/Toast";
 import { normalizeClienteEmail } from "@/lib/clientes/upsertClienteFromOrder";
+import { dispatchClienteSessionChanged } from "@/lib/cuenta/session-events";
+import { getSafePostLoginRedirect } from "@/lib/cuenta/safeRedirect";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -16,8 +19,10 @@ const schema = z.object({
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
@@ -49,7 +54,9 @@ export function LoginForm() {
         toast.error(typeof data.error === "string" ? data.error : "No se pudo iniciar sesión.");
         return;
       }
-      router.push("/cuenta");
+      dispatchClienteSessionChanged();
+      const next = getSafePostLoginRedirect(searchParams.get("redirect"), "/");
+      router.push(next);
       router.refresh();
     } catch {
       toast.error("Error de conexión. Intenta nuevamente.");
@@ -70,12 +77,26 @@ export function LoginForm() {
       />
       <Input
         label="Contraseña"
-        type="password"
+        type={showPassword ? "text" : "password"}
         autoComplete="current-password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         error={errors.password}
+        suffix={
+          <CuentaPasswordToggleSuffix
+            visible={showPassword}
+            onToggle={() => setShowPassword((prev) => !prev)}
+          />
+        }
       />
+      <p className="text-right text-sm">
+        <Link
+          href="/cuenta/recuperar"
+          className="font-medium text-[var(--color-primary)] underline underline-offset-2 hover:opacity-90"
+        >
+          ¿Olvidaste tu contraseña?
+        </Link>
+      </p>
       <Button type="submit" size="lg" fullWidth loading={loading}>
         Iniciar sesión
       </Button>

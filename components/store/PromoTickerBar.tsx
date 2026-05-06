@@ -36,16 +36,18 @@ export function PromoTickerBar() {
 
   return (
     <div
-      className="promo-ticker-bar sticky top-0 z-50 flex h-8 w-full cursor-pointer items-center justify-center overflow-hidden border-b border-black/20 px-3 sm:px-6"
+      className="promo-ticker-bar sticky top-0 z-50 flex h-8 w-full items-center justify-center overflow-hidden border-b border-black/20 px-3 sm:px-6 pointer-events-none"
       style={cycleStyle}
       role="region"
       aria-label="Avisos de la tienda"
       aria-live="polite"
       aria-atomic="true"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
     >
-      <div className="relative flex h-full w-full max-w-4xl items-center justify-center overflow-hidden">
+      <div
+        className="relative flex h-full w-full max-w-4xl cursor-pointer items-center justify-center overflow-hidden pointer-events-auto"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
         <div
           key={active}
           className="promo-ticker-phrase absolute inset-x-0 flex items-center justify-center px-2"

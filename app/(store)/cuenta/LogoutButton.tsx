@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { toast } from "@/components/ui/Toast";
+import { dispatchClienteSessionChanged } from "@/lib/cuenta/session-events";
 
 export function LogoutButton() {
   const [loading, setLoading] = useState(false);
@@ -17,6 +18,7 @@ export function LogoutButton() {
         toast.error("No se pudo cerrar sesión.");
         return;
       }
+      dispatchClienteSessionChanged();
       router.push("/cuenta/login");
       router.refresh();
     } catch {

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
-import { TrendingUp, ShoppingBag, Clock, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { TrendingUp, ShoppingBag, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeOrderStatusKey } from "@/lib/orders/formatOrderStatus";
 import { formatPrice } from "@/lib/utils/format";
 import type { ChartDay } from "./SalesChart";
 
@@ -34,6 +36,8 @@ const STATUS_CLS: Record<string, string> = {
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
 const PAID = ["paid", "shipped", "delivered"] as const;
+const PAID_NOT_PREPARED_KEYS = new Set(["paid", "pagado", "payment_confirmed"]);
+const PREPARED_OR_CLOSED_KEYS = new Set(["preparing", "shipped", "delivered", "cancelled"]);
 
 async function getDashboardData() {
   try {
@@ -49,7 +53,7 @@ async function getDashboardData() {
     const monthStart  = new Date(y, m, 1).toISOString();
     const weekStart   = new Date(y, m, d - 6).toISOString();
 
-    const [today, month, pendingRes, completedRes, recent, chart] =
+    const [today, month, pendingRes, completedRes, recent, chart, porPrepararRes] =
       await Promise.all([
         // Today's revenue
         supabase
@@ -91,6 +95,11 @@ async function getDashboardData() {
           .select("total, created_at")
           .in("status", PAID)
           .gte("created_at", weekStart),
+
+        // Pedidos pagados que aun no estan preparados
+        supabase
+          .from("orders")
+          .select("status"),
       ]);
 
     // ── Metrics ──
@@ -100,6 +109,11 @@ async function getDashboardData() {
     const monthSales  = sum(month.data  ?? []);
     const pending     = pendingRes.count   ?? 0;
     const completed   = completedRes.count ?? 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const porPreparar = (porPrepararRes.data ?? []).filter((o: any) => {
+      const key = normalizeOrderStatusKey(o.status);
+      return PAID_NOT_PREPARED_KEYS.has(key) && !PREPARED_OR_CLOSED_KEYS.has(key);
+    }).length;
 
     // ── Chart: fill all 7 days including zeros ──
     const chartData: ChartDay[] = Array.from({ length: 7 }, (_, i) => {
@@ -122,6 +136,7 @@ async function getDashboardData() {
       todaySales,
       monthSales,
       pending,
+      porPreparar,
       completed,
       recentOrders: recent.data ?? [],
       chartData,
@@ -132,6 +147,7 @@ async function getDashboardData() {
       todaySales:   0,
       monthSales:   0,
       pending:      0,
+      porPreparar:  0,
       completed:    0,
       recentOrders: [],
       chartData: Array.from({ length: 7 }, (_, i) => {
@@ -192,7 +208,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const { todaySales, monthSales, pending, completed, recentOrders, chartData } =
+  const { todaySales, monthSales, pending, porPreparar, completed, recentOrders, chartData } =
     await getDashboardData();
 
   return (
@@ -240,6 +256,40 @@ export default async function DashboardPage() {
           icon={<CheckCircle2 className="h-5 w-5 text-indigo-600" />}
           iconCls="bg-indigo-50"
         />
+      </div>
+
+      <div
+        className={`rounded-xl border p-4 shadow-sm ${
+          porPreparar > 0 ? "border-amber-300 bg-amber-50/60" : "border-zinc-200 bg-white"
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span
+              className={`mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg ${
+                porPreparar > 0 ? "bg-amber-100 text-amber-700" : "bg-zinc-100 text-zinc-500"
+              }`}
+            >
+              <AlertCircle className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">Por preparar</p>
+              <p className="text-sm text-zinc-600">
+                {porPreparar} pedidos pagados requieren preparación
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/admin/pedidos?filter=por-preparar"
+            className={`inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium ${
+              porPreparar > 0
+                ? "bg-amber-600 text-white hover:bg-amber-700"
+                : "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
+            }`}
+          >
+            Ver pedidos
+          </Link>
+        </div>
       </div>
 
       {/* ── Sales chart ── */}

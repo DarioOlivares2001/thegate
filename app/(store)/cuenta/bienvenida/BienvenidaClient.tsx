@@ -37,10 +37,12 @@ export function BienvenidaClient({
   storeName,
   queryNombre,
   queryEmail,
+  recoveryHint = false,
 }: {
   storeName: string;
   queryNombre?: string;
   queryEmail?: string;
+  recoveryHint?: boolean;
 }) {
   const [merged, setMerged] = useState<StoragePayload | null>(null);
 
@@ -95,6 +97,14 @@ export function BienvenidaClient({
             <p className="mt-3 text-xs text-zinc-400">
               Cuenta asociada a <span className="font-medium text-zinc-500">{displayEmail}</span>
             </p>
+          ) : null}
+          {recoveryHint ? (
+            <div className="mt-5 rounded-[var(--radius-md)] border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-left text-sm leading-relaxed text-emerald-950">
+              <p className="font-semibold text-emerald-900">Encontramos datos de compras anteriores</p>
+              <p className="mt-1 text-emerald-900/90">
+                Revisa tu perfil y dirección en «Mi cuenta» para confirmarlos y agilizar tu próxima compra.
+              </p>
+            </div>
           ) : null}
         </div>
 

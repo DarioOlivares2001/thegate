@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatOrderStatus } from "@/lib/orders/formatOrderStatus";
 import { formatPrice } from "@/lib/utils/format";
 import { getCuentaSessionFromCookies } from "@/lib/cuenta/session";
 
@@ -75,7 +76,9 @@ export default async function CuentaPedidosPage() {
                     <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-[var(--color-text)]">
                       {formatPrice(p.total)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 capitalize text-[var(--color-text-muted)]">{p.status}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-[var(--color-text-muted)]">
+                      {formatOrderStatus(p.status)}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       <Link
                         href={`/seguimiento?order=${encodeURIComponent(String(p.order_number))}`}

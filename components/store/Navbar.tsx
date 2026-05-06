@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type RefObject } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, ShoppingBag, User, X } from "lucide-react";
 import { useCartStore } from "@/lib/cart/store";
+import {
+  CLIENTE_SESSION_CHANGED_EVENT,
+  dispatchClienteSessionChanged,
+} from "@/lib/cuenta/session-events";
 import type { StoreSettingsView } from "@/lib/store-settings/getStoreSettings";
 
 type Slot = "left" | "center" | "right";
@@ -46,32 +51,105 @@ function placeSlots(
 }
 
 export function Navbar({ settings }: { settings: StoreSettingsView }) {
+  const pathname = usePathname();
+  const router = useRouter();
   const itemCount = useCartStore((s) => s.itemCount());
   const openDrawer = useCartStore((s) => s.openDrawer);
   const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hasClienteSession, setHasClienteSession] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  /** Solo una fila (móvil o desktop) monta el panel del menú; evita dos `role="menu"` en el DOM. */
+  const [desktopViewport, setDesktopViewport] = useState(false);
+  /** Hay dos instancias de cuentaControl (desktop y móvil); un solo ref haría que clicks en una instancia se consideren “fuera” de la otra. */
+  const userMenuWrapDesktopRef = useRef<HTMLDivElement>(null);
+  const userMenuWrapMobileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMounted(true), []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const sync = async () => {
-      try {
-        const res = await fetch("/api/cuenta/session", { cache: "no-store" });
-        const data = await res.json();
-        if (!cancelled) setHasClienteSession(Boolean(data.loggedIn));
-      } catch {
-        if (!cancelled) setHasClienteSession(false);
-      }
-    };
-    sync();
-    window.addEventListener("focus", sync);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("focus", sync);
-    };
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const apply = () => setDesktopViewport(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
   }, []);
+
+  useEffect(() => {
+    setUserMenuOpen(false);
+  }, [desktopViewport]);
+
+  const syncClienteSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/cuenta/session", { cache: "no-store" });
+      const data = await res.json();
+      setHasClienteSession(Boolean(data.loggedIn));
+    } catch {
+      setHasClienteSession(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void syncClienteSession();
+    const onFocus = () => void syncClienteSession();
+    const onSessionChanged = () => void syncClienteSession();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener(CLIENTE_SESSION_CHANGED_EVENT, onSessionChanged);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener(CLIENTE_SESSION_CHANGED_EVENT, onSessionChanged);
+    };
+  }, [syncClienteSession]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    function closeIfOutside(e: MouseEvent | TouchEvent) {
+      const t = e.target as Node;
+      const a = userMenuWrapDesktopRef.current;
+      const b = userMenuWrapMobileRef.current;
+      if ((a && a.contains(t)) || (b && b.contains(t))) return;
+      // Diferir el cierre: si cerramos en el mismo tick que mousedown/touchstart sobre un <a>,
+      // algunos navegadores no llegan a emitir el click y la navegación no ocurre.
+      window.setTimeout(() => setUserMenuOpen(false), 0);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setUserMenuOpen(false);
+    }
+    document.addEventListener("mousedown", closeIfOutside);
+    document.addEventListener("touchstart", closeIfOutside);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", closeIfOutside);
+      document.removeEventListener("touchstart", closeIfOutside);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [userMenuOpen]);
+
+  useEffect(() => {
+    setUserMenuOpen(false);
+  }, [pathname]);
+
+  const loginHref = `/cuenta/login?redirect=${encodeURIComponent(pathname || "/")}`;
+
+  async function handleLogout() {
+    try {
+      await fetch("/api/cuenta/logout", { method: "POST" });
+    } catch {
+      // aun así cerramos UI local
+    }
+    setHasClienteSession(false);
+    setUserMenuOpen(false);
+    setMobileOpen(false);
+    dispatchClienteSessionChanged();
+    router.push("/");
+    router.refresh();
+  }
+
+  function handleUserMenuNavigate(path: string, onAfterCloseMenu?: () => void) {
+    setUserMenuOpen(false);
+    onAfterCloseMenu?.();
+    router.push(path);
+  }
 
   const mode = settings.branding_mode ?? "logo_and_text";
   const logoSrc = settings.logo_url || settings.logo_square_url;
@@ -134,21 +212,104 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
     </nav>
   );
 
-  const cuentaHref = hasClienteSession ? "/cuenta" : "/cuenta/login";
-  const cuentaAria = hasClienteSession ? "Ir a mi cuenta" : "Entrar a mi cuenta o iniciar sesión";
+  const cuentaAriaLoggedOut = "Entrar a mi cuenta o iniciar sesión";
+  const cuentaAriaLoggedIn = "Menú de cuenta";
 
-  const cuentaLink = (opts: { onNavigate?: () => void }) => (
-    <Link
-      href={cuentaHref}
-      onClick={opts.onNavigate}
-      title="Mi cuenta"
-      aria-label={cuentaAria}
-      className="rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40"
-      style={{ color: navbarTextColor }}
-    >
-      <User className="h-6 w-6" strokeWidth={1.75} />
-    </Link>
-  );
+  const menuLinkClass =
+    "block w-full cursor-pointer rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-[var(--color-border)]/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-inset";
+
+  const cuentaControl = (opts: {
+    onNavigate?: () => void;
+    menuWrapRef: RefObject<HTMLDivElement | null>;
+    mountMenuPanel: boolean;
+  }) => {
+    if (!hasClienteSession) {
+      return (
+        <Link
+          href={loginHref}
+          onClick={opts.onNavigate}
+          title="Mi cuenta"
+          aria-label={cuentaAriaLoggedOut}
+          className="rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40"
+          style={{ color: navbarTextColor }}
+        >
+          <User className="h-6 w-6" strokeWidth={1.75} />
+        </Link>
+      );
+    }
+
+    return (
+      <div ref={opts.menuWrapRef} className="relative">
+        <button
+          type="button"
+          title="Mi cuenta"
+          aria-label={cuentaAriaLoggedIn}
+          aria-expanded={userMenuOpen}
+          aria-haspopup="menu"
+          onClick={() => setUserMenuOpen((o) => !o)}
+          className={`rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] ${
+            userMenuOpen
+              ? "bg-[var(--color-primary)]/18 ring-2 ring-[var(--color-primary)]/45"
+              : "bg-[var(--color-primary)]/10 ring-1 ring-[var(--color-primary)]/30 hover:bg-[var(--color-primary)]/14"
+          } text-[var(--color-primary)]`}
+        >
+          <User className="h-6 w-6" strokeWidth={1.75} aria-hidden />
+        </button>
+        {userMenuOpen && opts.mountMenuPanel && (
+          <div
+            role="menu"
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute right-0 z-50 mt-2 max-h-[min(22rem,calc(100dvh-5.5rem))] w-[min(100vw-2rem,13.5rem)] overflow-y-auto overscroll-contain rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] py-1 shadow-lg"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className={menuLinkClass}
+              style={{ color: navbarTextColor }}
+              onClick={() => handleUserMenuNavigate("/cuenta/datos", opts.onNavigate)}
+            >
+              Mis datos
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuLinkClass}
+              style={{ color: navbarTextColor }}
+              onClick={() => handleUserMenuNavigate("/cuenta/direcciones", opts.onNavigate)}
+            >
+              Mis direcciones
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuLinkClass}
+              style={{ color: navbarTextColor }}
+              onClick={() => handleUserMenuNavigate("/cuenta/pedidos", opts.onNavigate)}
+            >
+              Mis pedidos
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={menuLinkClass}
+              style={{ color: navbarTextColor }}
+              onClick={() => handleUserMenuNavigate("/seguimiento", opts.onNavigate)}
+            >
+              Seguimiento
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={`${menuLinkClass} text-[var(--color-error)] hover:bg-[var(--color-error)]/8`}
+              onClick={() => void handleLogout()}
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const cart = (
     <button
@@ -175,7 +336,7 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
     </button>
   );
 
-  const cuentaHintDesktop = (
+  const cuentaHintDesktop = !hasClienteSession ? (
     <div className="hidden max-w-[148px] flex-col items-end justify-center pr-1 text-right md:flex lg:max-w-[200px]">
       <span
         className="text-[10px] font-medium leading-snug text-[var(--color-text-muted)]"
@@ -184,12 +345,12 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
         Entra a tu cuenta y accede a descuentos exclusivos
       </span>
     </div>
-  );
+  ) : null;
 
   const accountAndCart = (
     <div className="flex items-center justify-end gap-0.5 md:gap-2">
       {cuentaHintDesktop}
-      {cuentaLink({})}
+      {cuentaControl({ menuWrapRef: userMenuWrapDesktopRef, mountMenuPanel: desktopViewport })}
       {cart}
     </div>
   );
@@ -216,10 +377,11 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
 
   return (
     <header
-      className="sticky top-8 z-40 w-full border-b border-[var(--color-border)] backdrop-blur-md"
+      className="sticky top-8 z-40 w-full border-b border-[var(--color-border)] backdrop-blur-md pointer-events-none"
       style={{ backgroundColor: navbarBgColor }}
     >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      {/* Solo la barra recibe clics: evita que extensiones del sticky (blur/sombra) roben hits al contenido debajo al hacer scroll */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pointer-events-auto">
         {/* Mobile */}
         <div className="grid h-16 grid-cols-[40px_1fr_40px] items-center gap-2 md:hidden">
           <button
@@ -235,7 +397,11 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
           <div className={`flex min-w-0 ${mobileBrandAlign}`}>{brand}</div>
 
           <div className="justify-self-end flex items-center gap-0.5">
-            {cuentaLink({ onNavigate: () => setMobileOpen(false) })}
+            {cuentaControl({
+              menuWrapRef: userMenuWrapMobileRef,
+              onNavigate: () => setMobileOpen(false),
+              mountMenuPanel: !desktopViewport,
+            })}
             {cart}
           </div>
         </div>
@@ -259,21 +425,73 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
               >
                 Nosotros
               </Link>
-              <p
-                className="mt-1 border-t border-[var(--color-border)]/60 px-3 pt-2 text-[10px] leading-snug text-[var(--color-text-muted)]"
-                style={{ opacity: 0.95 }}
-              >
-                Entra a tu cuenta y accede a descuentos exclusivos
-              </p>
-              <Link
-                href={cuentaHref}
-                onClick={() => setMobileOpen(false)}
-                className="mt-0.5 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--color-border)]/30"
-                style={{ color: navbarTextColor }}
-              >
-                <User className="h-4 w-4 shrink-0 opacity-80" strokeWidth={1.75} aria-hidden />
-                Mi cuenta
-              </Link>
+              {!hasClienteSession ? (
+                <p
+                  className="mt-1 border-t border-[var(--color-border)]/60 px-3 pt-2 text-[10px] leading-snug text-[var(--color-text-muted)]"
+                  style={{ opacity: 0.95 }}
+                >
+                  Entra a tu cuenta y accede a descuentos exclusivos
+                </p>
+              ) : null}
+              {hasClienteSession ? (
+                <>
+                  <p
+                    className="mt-1 border-t border-[var(--color-border)]/60 px-3 pt-2 text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]"
+                    style={{ opacity: 0.95 }}
+                  >
+                    Tu cuenta
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleUserMenuNavigate("/cuenta/datos", () => setMobileOpen(false))}
+                    className="mt-0.5 block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
+                    style={{ color: navbarTextColor }}
+                  >
+                    Mis datos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUserMenuNavigate("/cuenta/direcciones", () => setMobileOpen(false))}
+                    className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
+                    style={{ color: navbarTextColor }}
+                  >
+                    Mis direcciones
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUserMenuNavigate("/cuenta/pedidos", () => setMobileOpen(false))}
+                    className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
+                    style={{ color: navbarTextColor }}
+                  >
+                    Mis pedidos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUserMenuNavigate("/seguimiento", () => setMobileOpen(false))}
+                    className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
+                    style={{ color: navbarTextColor }}
+                  >
+                    Seguimiento
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleLogout()}
+                    className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-[var(--color-error)] transition-colors hover:bg-[var(--color-error)]/8"
+                  >
+                    Cerrar sesión
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href={loginHref}
+                  onClick={() => setMobileOpen(false)}
+                  className="mt-0.5 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--color-border)]/30"
+                  style={{ color: navbarTextColor }}
+                >
+                  <User className="h-4 w-4 shrink-0 opacity-80" strokeWidth={1.75} aria-hidden />
+                  Iniciar sesión
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => {

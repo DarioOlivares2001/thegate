@@ -3,30 +3,26 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, ShoppingBag, ExternalLink } from "lucide-react";
+import { formatOrderStatus, normalizeOrderStatusKey } from "@/lib/orders/formatOrderStatus";
 import { formatPrice } from "@/lib/utils/format";
 
 // ─── Status config ────────────────────────────────────────────────────────────
-
-const STATUS_LABEL: Record<string, string> = {
-  pending:   "Pedido recibido",
-  paid:      "Pago confirmado",
-  preparing: "Preparando",
-  shipped:   "En despacho",
-  delivered: "Entregado",
-  cancelled: "Cancelado",
-};
 
 const STATUS_CLS: Record<string, string> = {
   pending:   "bg-amber-50  text-amber-700",
   paid:      "bg-blue-50   text-blue-700",
   preparing: "bg-violet-50 text-violet-700",
+  processing: "bg-violet-50 text-violet-700",
   shipped:   "bg-indigo-50 text-indigo-700",
   delivered: "bg-green-50  text-green-700",
   cancelled: "bg-zinc-100  text-zinc-500",
+  failed:    "bg-red-50    text-red-700",
+  refunded:  "bg-zinc-100  text-zinc-600",
 };
 
 const FILTERS = [
   { key: "all",       label: "Todos" },
+  { key: "por-preparar", label: "Por preparar" },
   { key: "pending",   label: "Pedido recibido" },
   { key: "paid",      label: "Pago confirmado" },
   { key: "preparing", label: "Preparando" },
@@ -34,6 +30,9 @@ const FILTERS = [
   { key: "delivered", label: "Entregados" },
   { key: "cancelled", label: "Cancelados" },
 ] as const;
+const VALID_FILTERS = new Set(FILTERS.map((f) => f.key));
+const PAID_NOT_PREPARED_KEYS = new Set(["paid", "pagado", "payment_confirmed"]);
+const PREPARED_OR_CLOSED_KEYS = new Set(["preparing", "shipped", "delivered", "cancelled"]);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,17 +46,29 @@ function itemsSummary(items: any[]): string {
   return parts.length > 2 ? `${visible} +${parts.length - 2} más` : visible;
 }
 
+function isPorPrepararStatus(status: string): boolean {
+  return PAID_NOT_PREPARED_KEYS.has(status) && !PREPARED_OR_CLOSED_KEYS.has(status);
+}
+
+function hoursSince(isoDate: string | null | undefined): number {
+  if (!isoDate) return 0;
+  const t = new Date(isoDate).getTime();
+  if (!Number.isFinite(t)) return 0;
+  return (Date.now() - t) / (1000 * 60 * 60);
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function PedidosClient({ orders }: { orders: any[] }) {
-  const [filter, setFilter] = useState("all");
+export function PedidosClient({ orders, initialFilter }: { orders: any[]; initialFilter?: string }) {
+  const initial = initialFilter && VALID_FILTERS.has(initialFilter) ? initialFilter : "all";
+  const [filter, setFilter] = useState(initial);
   const [search, setSearch] = useState("");
   const normalizedOrders = useMemo(
     () =>
       orders.map((o) => ({
         ...o,
-        status: o.status === "ready_to_ship" ? "shipped" : o.status,
+        status: normalizeOrderStatusKey(o.status) || String(o.status ?? "").trim().toLowerCase(),
       })),
     [orders]
   );
@@ -67,6 +78,9 @@ export function PedidosClient({ orders }: { orders: any[] }) {
     const map: Record<string, number> = { all: normalizedOrders.length };
     for (const o of normalizedOrders) {
       map[o.status] = (map[o.status] ?? 0) + 1;
+      if (isPorPrepararStatus(o.status)) {
+        map["por-preparar"] = (map["por-preparar"] ?? 0) + 1;
+      }
     }
     return map;
   }, [normalizedOrders]);
@@ -74,7 +88,11 @@ export function PedidosClient({ orders }: { orders: any[] }) {
   // Filtered + searched list
   const displayed = useMemo(() => {
     let result = normalizedOrders;
-    if (filter !== "all") result = result.filter((o) => o.status === filter);
+    if (filter === "por-preparar") {
+      result = result.filter((o) => isPorPrepararStatus(o.status));
+    } else if (filter !== "all") {
+      result = result.filter((o) => o.status === filter);
+    }
     const q = search.trim().toLowerCase();
     if (q) {
       result = result.filter(
@@ -82,6 +100,11 @@ export function PedidosClient({ orders }: { orders: any[] }) {
           String(o.order_number).includes(q) ||
           (o.customer_email ?? "").toLowerCase().includes(q) ||
           (o.customer_name ?? "").toLowerCase().includes(q)
+      );
+    }
+    if (filter === "por-preparar") {
+      return [...result].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
     }
     return result;
@@ -188,13 +211,31 @@ export function PedidosClient({ orders }: { orders: any[] }) {
                     </td>
 
                     <td className="px-5 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          STATUS_CLS[order.status] ?? "bg-zinc-100 text-zinc-500"
-                        }`}
-                      >
-                        {STATUS_LABEL[order.status] ?? order.status}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            STATUS_CLS[order.status] ?? "bg-zinc-100 text-zinc-500"
+                          }`}
+                        >
+                          {formatOrderStatus(order.status)}
+                        </span>
+                        {isPorPrepararStatus(order.status) ? (
+                          <>
+                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                              Por preparar
+                            </span>
+                            {hoursSince(order.created_at) > 48 ? (
+                              <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
+                                Atrasado
+                              </span>
+                            ) : hoursSince(order.created_at) > 24 ? (
+                              <span className="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700">
+                                Urgente
+                              </span>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
                     </td>
 
                     <td className="px-5 py-3 text-xs text-zinc-400">

@@ -93,21 +93,21 @@ export function Hero({
             {...fadeUp(0.1)}
             className="mx-auto mb-4 inline-flex w-fit items-center rounded-full bg-gradient-to-r from-purple-700 to-pink-500 px-4 py-2 text-xs font-semibold text-white shadow-lg ring-1 ring-white/30"
           >
-            🐾 Soluciones premium para gatos felices
+            Soluciones premium para gatos felices
           </motion.p>
 
           <motion.h1
             {...fadeUp(0.2)}
             className="mx-auto mt-2 max-w-[340px] font-display text-[34px] font-bold leading-[1.05] tracking-tight text-[#3f2418]"
           >
-            Bienestar que se nota, amor que se siente.
+            Elimina el olor de tu gato desde el primer uso
           </motion.h1>
 
           <motion.p
             {...fadeUp(0.3)}
             className="mx-auto mt-3 max-w-[300px] text-sm leading-relaxed text-[#6f4a3a]"
           >
-            Menos olor, menos limpieza, más bienestar para tu gato.
+            Mantén tu hogar limpio y sin olores, sin esfuerzo.
           </motion.p>
         </div>
 
@@ -119,7 +119,7 @@ export function Hero({
                 fullWidth
                 className="bg-[#6f3c2a] text-white shadow-xl shadow-[#6f3c2a]/30 transition-transform hover:scale-[1.03] hover:bg-[#5d3223]"
               >
-                Descubrir soluciones
+                Comprar ahora
               </Button>
             </Link>
             <Link href="/#packs-ahorro" className="mx-auto w-full max-w-[300px]">
@@ -129,7 +129,7 @@ export function Hero({
                 fullWidth
                 className="border border-[#d8b39d] bg-white/85 text-[#6f3c2a] shadow-xl transition-transform hover:scale-[1.03] hover:bg-white"
               >
-                Ver packs ahorro
+                Ver packs con descuento
               </Button>
             </Link>
           </motion.div>
@@ -138,9 +138,9 @@ export function Hero({
             {...fadeUp(0.6)}
             className="mt-2 flex flex-wrap justify-center gap-2 text-xs text-[#6a4334]"
           >
-            <li className="rounded-full bg-white/85 px-3 py-1.5 text-xs shadow-sm">Entrega rápida</li>
-            <li className="rounded-full bg-white/85 px-3 py-1.5 text-xs shadow-sm">Pago seguro</li>
-            <li className="rounded-full bg-white/85 px-3 py-1.5 text-xs shadow-sm">WhatsApp</li>
+            <li className="rounded-full bg-white/85 px-3 py-1.5 text-xs shadow-sm">Control efectivo de olores</li>
+            <li className="rounded-full bg-white/85 px-3 py-1.5 text-xs shadow-sm">Entrega rápida en Rancagua</li>
+            <li className="rounded-full bg-white/85 px-3 py-1.5 text-xs shadow-sm">Atención directa por WhatsApp</li>
           </motion.ul>
         </div>
       </div>
@@ -158,14 +158,14 @@ export function Hero({
             {...fadeUp(0.2)}
             className="mt-2 max-w-[560px] font-display text-[52px] font-bold leading-[1.05] tracking-tight text-[#3f2418]"
           >
-            Bienestar que se nota, amor que se siente.
+            Elimina el olor de tu gato desde el primer uso
           </motion.h1>
 
           <motion.p
             {...fadeUp(0.35)}
             className="mt-3 max-w-[500px] text-sm leading-relaxed text-[#6f4a3a] sm:text-base"
           >
-            Productos diseñados para una vida más limpia, cómoda y tranquila para tu gato y tu hogar. Entrega rápida en Rancagua.
+            Mantén tu hogar limpio y sin olores, sin esfuerzo.
           </motion.p>
 
           <motion.div {...fadeUp(0.5)} className="mt-5 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -175,7 +175,7 @@ export function Hero({
                 fullWidth
                 className="bg-[#6f3c2a] text-white shadow-xl shadow-[#6f3c2a]/30 transition-transform hover:scale-[1.03] hover:bg-[#5d3223]"
               >
-                Descubrir soluciones
+                Comprar ahora
               </Button>
             </Link>
             <Link href="/#packs-ahorro" className="w-full sm:w-auto">
@@ -185,14 +185,14 @@ export function Hero({
                 fullWidth
                 className="border border-[#d8b39d] bg-white/80 text-[#6f3c2a] shadow-xl transition-transform hover:scale-[1.03] hover:bg-white"
               >
-                Ver packs ahorro
+                Ver packs con descuento
               </Button>
             </Link>
           </motion.div>
           <motion.ul {...fadeUp(0.65)} className="mt-6 grid gap-2.5 text-sm text-[#6a4334] sm:grid-cols-3">
+            <li className="rounded-xl border border-[#edd5c8] bg-white/75 px-3 py-2 shadow-sm">Control efectivo de olores</li>
             <li className="rounded-xl border border-[#edd5c8] bg-white/75 px-3 py-2 shadow-sm">Entrega rápida en Rancagua</li>
-            <li className="rounded-xl border border-[#edd5c8] bg-white/75 px-3 py-2 shadow-sm">Pago seguro</li>
-            <li className="rounded-xl border border-[#edd5c8] bg-white/75 px-3 py-2 shadow-sm">Atención por WhatsApp</li>
+            <li className="rounded-xl border border-[#edd5c8] bg-white/75 px-3 py-2 shadow-sm">Atención directa por WhatsApp</li>
           </motion.ul>
         </div>
       </div>

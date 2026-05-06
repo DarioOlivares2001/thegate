@@ -9,19 +9,11 @@ import { ProductCard } from "@/components/store/ProductCard";
 import { ProductCardSkeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import type { Product } from "@/lib/supabase/types";
+import { normalizeProductCategory, sortCategoriesForStore } from "@/lib/product/categories";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SortKey = "newest" | "price-asc" | "price-desc";
-const CATEGORY_ORDER = [
-  "Arena para gatos",
-  "Control de olores",
-  "Areneros",
-  "Limpieza y accesorios",
-  "Alimentación y snacks",
-  "Packs ahorro",
-] as const;
-
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "newest", label: "Más nuevos" },
   { value: "price-asc", label: "Menor precio" },
@@ -46,20 +38,22 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
   const categories = useMemo(
     () => {
       const unique = Array.from(
-        new Set(initialProducts.map((p) => p.category).filter(Boolean))
+        new Set(
+          initialProducts
+            .map((p) => normalizeProductCategory(p.category))
+            .filter(Boolean)
+        )
       ) as string[];
-      const ranked = CATEGORY_ORDER.filter((cat) => unique.includes(cat));
-      const rest = unique
-        .filter((cat) => !CATEGORY_ORDER.includes(cat as (typeof CATEGORY_ORDER)[number]))
-        .sort((a, b) => a.localeCompare(b, "es"));
-      return [...ranked, ...rest];
+      return sortCategoriesForStore(unique);
     },
     [initialProducts]
   );
 
   const displayed = useMemo(() => {
     let result = [...initialProducts];
-    if (category) result = result.filter((p) => p.category === category);
+    if (category) {
+      result = result.filter((p) => normalizeProductCategory(p.category) === category);
+    }
     if (sort === "price-asc") result.sort((a, b) => a.price - b.price);
     if (sort === "price-desc") result.sort((a, b) => b.price - a.price);
     return result;

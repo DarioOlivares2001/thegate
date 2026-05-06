@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { toast } from "@/components/ui/Toast";
 import { updateProductAction } from "../nuevo/actions";
 import { compressImageIfNeeded } from "@/lib/images/compressImage";
+import { ECOMMERCE_CATEGORIES, normalizeProductCategory } from "@/lib/product/categories";
 
 // ─── Rich text editor (client-only) ──────────────────────────────────────────
 
@@ -44,14 +45,7 @@ function slugify(text: string) {
     .trim();
 }
 
-const CATEGORIES = [
-  "Arena para gatos",
-  "Control de olores",
-  "Areneros",
-  "Limpieza y accesorios",
-  "Alimentación y snacks",
-  "Packs ahorro",
-];
+const CATEGORIES = [...ECOMMERCE_CATEGORIES];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -151,7 +145,7 @@ export function EditProductoForm({
     compare_at_price: product.compare_at_price ? String(product.compare_at_price) : "",
     cost_price: product.cost_price != null ? String(product.cost_price) : "",
     stock: product.stock != null ? String(product.stock) : "0",
-    category: product.category ?? "",
+    category: normalizeProductCategory(product.category),
   });
   const [description, setDescription] = useState<string>(product.description ?? "");
   const [active, setActive] = useState<boolean>(product.active ?? true);

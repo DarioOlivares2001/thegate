@@ -222,8 +222,8 @@ export function CartDrawer({
             ref={overlayRef}
             key="overlay"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            animate={{ opacity: 1, pointerEvents: "auto" }}
+            exit={{ opacity: 0, pointerEvents: "none" }}
             transition={{ duration: 0.2 }}
             onClick={closeDrawer}
             className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
@@ -234,8 +234,8 @@ export function CartDrawer({
           <motion.aside
             key="drawer"
             initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            animate={{ x: 0, pointerEvents: "auto" }}
+            exit={{ x: "100%", pointerEvents: "none" }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-[var(--color-surface)] shadow-[var(--shadow-lg)]"
             aria-label="Carrito de compras"

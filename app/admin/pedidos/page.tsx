@@ -34,7 +34,11 @@ async function getOrders() {
   }
 }
 
-export default async function PedidosPage() {
+export default async function PedidosPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
   const { orders, error } = await getOrders();
 
   if (error) {
@@ -45,5 +49,7 @@ export default async function PedidosPage() {
     );
   }
 
-  return <PedidosClient orders={orders} />;
+  const initialFilterParam = searchParams?.filter;
+  const initialFilter = Array.isArray(initialFilterParam) ? initialFilterParam[0] : initialFilterParam;
+  return <PedidosClient orders={orders} initialFilter={initialFilter} />;
 }

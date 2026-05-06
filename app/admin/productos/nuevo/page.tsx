@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { toast } from "@/components/ui/Toast";
 import { createProductAction } from "./actions";
 import { compressImageIfNeeded } from "@/lib/images/compressImage";
+import { ECOMMERCE_CATEGORIES } from "@/lib/product/categories";
 
 // ─── Rich text editor (client-only) ──────────────────────────────────────────
 
@@ -35,14 +36,7 @@ function slugify(text: string) {
     .trim();
 }
 
-const CATEGORIES = [
-  "Arena para gatos",
-  "Control de olores",
-  "Areneros",
-  "Limpieza y accesorios",
-  "Alimentación y snacks",
-  "Packs ahorro",
-];
+const CATEGORIES = [...ECOMMERCE_CATEGORIES];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
