@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Hero } from "@/components/store/Hero";
 import { Button } from "@/components/ui/Button";
-import { BentoGrid, type BentoItem } from "@/components/store/BentoGrid";
+import { BentoGrid } from "@/components/store/BentoGrid";
 import { SocialProof } from "@/components/store/SocialProof";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
-import { normalizeProductCategory } from "@/lib/product/categories";
-import { MOCK_PRODUCTS } from "@/lib/utils/mock-products";
-import type { Product } from "@/lib/supabase/types";
+import { resolveLandingBentoSections } from "@/lib/store/landing-home-catalog";
+import { formatPrice } from "@/lib/utils/format";
 
 export const metadata: Metadata = {
   title: "Tienda para gatos",
@@ -16,51 +16,9 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function productToBentoItem(p: Product, index: number): BentoItem {
-  const hasOffer = !!p.compare_at_price && p.compare_at_price > p.price;
-  return {
-    id: p.id,
-    type: index === 0 ? "featured" : "product",
-    size: index === 0 || index === 3 ? "large" : "normal",
-    title: p.name,
-    subtitle: normalizeProductCategory(p.category) || undefined,
-    price: p.price,
-    compareAtPrice: hasOffer ? p.compare_at_price! : undefined,
-    image: p.images?.[0] ?? undefined,
-    href: `/productos/${p.slug}`,
-    badge: p.stock === 0 ? "Agotado" : p.stock <= 5 ? "Últimas unidades" : undefined,
-  };
-}
-
-async function getFeaturedProducts(): Promise<BentoItem[]> {
-  try {
-    const { createClient } = await import("@/lib/supabase/server");
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("products")
-      .select("id, slug, name, price, compare_at_price, images, category, stock")
-      .eq("active", true)
-      .order("created_at", { ascending: false })
-      .limit(5);
-    if (data?.length) {
-      return (data as Product[]).map(productToBentoItem);
-    }
-  } catch {
-    // DB not configured yet
-  }
-  return MOCK_PRODUCTS.slice(0, 5).map(productToBentoItem);
-}
-
 export default async function HomePage() {
   const settings = await getStoreSettings();
-  const bentoItems = await getFeaturedProducts();
-  const packItems = bentoItems.filter(
-    (item) =>
-      typeof item.price === "number" &&
-      typeof item.compareAtPrice === "number" &&
-      item.compareAtPrice > item.price
-  );
-  const packsToShow = packItems.length > 0 ? packItems : bentoItems.slice(0, 3);
+  const { starterItems, offerProducts } = await resolveLandingBentoSections();
 
   return (
     <main>
@@ -136,11 +94,58 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <BentoGrid title="Productos recomendados para eliminar el olor" items={bentoItems} />
+      <BentoGrid title="Empieza con estos productos" items={starterItems} />
 
-      <section id="packs-ahorro">
-        <BentoGrid title="Ahorra más comprando en pack" items={packsToShow} />
-      </section>
+      {offerProducts.length > 0 ? (
+        <section className="mx-auto w-full max-w-7xl border-t border-[var(--color-border)] px-4 py-14 sm:px-6 lg:px-8">
+          <h2 className="font-display text-3xl font-bold text-[var(--color-text)] sm:text-4xl">
+            Productos en oferta
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm text-[var(--color-text-muted)] sm:text-base">
+            Aprovecha descuentos por tiempo limitado en productos seleccionados.
+          </p>
+
+          <div className="mt-7 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:pb-0">
+            {offerProducts.map((product) => {
+              const compareAt = product.compare_at_price ?? product.price;
+              const discount = Math.max(0, Math.round((1 - product.price / compareAt) * 100));
+              return (
+                <article
+                  key={product.id}
+                  className="min-w-[270px] snap-start overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm md:min-w-0"
+                >
+                  <div className="relative aspect-[4/3] bg-zinc-100">
+                    <Image
+                      src={product.images[0]!}
+                      alt={product.name}
+                      fill
+                      sizes="(max-width: 768px) 78vw, 30vw"
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="p-4">
+                    <p className="line-clamp-2 text-sm font-semibold text-[var(--color-text)]">{product.name}</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-base font-bold text-[var(--color-text)]">{formatPrice(product.price)}</span>
+                      <span className="text-sm text-[var(--color-text-muted)] line-through">
+                        {formatPrice(compareAt)}
+                      </span>
+                      <span className="ml-auto rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                        -{discount}%
+                      </span>
+                    </div>
+                    <Link href={`/productos/${product.slug}`} className="mt-4 block">
+                      <Button size="md" fullWidth variant="secondary">
+                        Ver producto
+                      </Button>
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <SocialProof />
 

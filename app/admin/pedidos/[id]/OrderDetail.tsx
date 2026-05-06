@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Package, ChevronDown, Workflow } from "lucide-react";
+import { ArrowLeft, MapPin, Package, ChevronDown, Workflow, MessageCircle } from "lucide-react";
 import { formatOrderStatus, normalizeOrderStatusKey } from "@/lib/orders/formatOrderStatus";
 import { formatPrice } from "@/lib/utils/format";
 import { toast } from "@/components/ui/Toast";
@@ -61,6 +61,10 @@ function normalizeTelHref(phone: string | null | undefined): string | null {
   return `tel:+${d}`;
 }
 
+function normalizePhoneDigits(phone: string | null | undefined): string {
+  return String(phone ?? "").replace(/\D/g, "");
+}
+
 function formatPhoneDisplay(phone: string | null | undefined): string {
   const raw = String(phone ?? "").trim();
   if (!raw) return "";
@@ -92,10 +96,19 @@ export function OrderDetail({ order }: { order: any }) {
   const [currentStatus, setCurrentStatus] = useState<string>(() => normalizeOrderStatusKey(order.status));
   const [status, setStatus] = useState<string>(() => normalizeOrderStatusKey(order.status));
   const [saving, setSaving] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
   const currentOrderStatus = currentStatus;
 
   const addr = (order.shipping_address ?? {}) as Record<string, unknown>;
   const telHref = normalizeTelHref(order.customer_phone as string | null | undefined);
+  const phoneDigits = normalizePhoneDigits(order.customer_phone as string | null | undefined);
+  const customerName = String(order.customer_name ?? "").trim() || "cliente";
+  const whatsappMessage = `Hola ${customerName}, soy de PonkyBonk.\n\nTe escribo por tu pedido #${order.order_number}.\n\nYa lo estamos preparando.\n\n¿Estarás disponible para la entrega hoy?`;
+  const whatsappHref =
+    phoneDigits.length > 0
+      ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(whatsappMessage)}`
+      : "";
   const mapsQuery = buildMapsQuery(addr);
   const hasAddressForMaps = Boolean(
     addr.direccion ??
@@ -120,6 +133,24 @@ export function OrderDetail({ order }: { order: any }) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const items: any[] = Array.isArray(order.items) ? order.items : [];
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  async function handleCopyPhone() {
+    if (!phoneDigits) return;
+    try {
+      await navigator.clipboard.writeText(phoneDigits);
+      setCopiedPhone(true);
+      setTimeout(() => setCopiedPhone(false), 1500);
+    } catch {
+      toast.error("No se pudo copiar el número.");
+    }
+  }
 
   async function handleSave(nextStatus: string) {
     if (nextStatus === currentOrderStatus) return;
@@ -203,12 +234,34 @@ export function OrderDetail({ order }: { order: any }) {
                 >
                   {phoneDisplay || order.customer_phone}
                 </a>
-                <a
-                  href={telHref}
-                  className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-zinc-900 px-2.5 text-[11px] font-semibold text-white hover:bg-zinc-700"
-                >
-                  Llamar
-                </a>
+                {isMobile ? (
+                  <a
+                    href={telHref}
+                    className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-zinc-900 px-2.5 text-[11px] font-semibold text-white hover:bg-zinc-700"
+                  >
+                    Llamar
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCopyPhone}
+                    className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 bg-white px-2.5 text-[11px] font-semibold text-zinc-800 hover:bg-zinc-50"
+                  >
+                    {copiedPhone ? "Copiado" : "Copiar número"}
+                  </button>
+                )}
+                {whatsappHref ? (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[11px] font-semibold text-white hover:bg-emerald-700"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    <span className="leading-none">Contactar cliente</span>
+                    <span className="block text-[10px] font-medium leading-none text-emerald-100">vía WhatsApp</span>
+                  </a>
+                ) : null}
               </div>
             ) : order.customer_phone ? (
               <p className="text-lg font-bold text-zinc-900">{order.customer_phone}</p>

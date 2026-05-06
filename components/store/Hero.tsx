@@ -5,8 +5,7 @@ import { motion } from "framer-motion";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 
-const HERO_FALLBACK_BANNER =
-  "https://images.unsplash.com/photo-1511044568932-338cba0ad803?auto=format&fit=crop&w=2000&q=80";
+const HERO_FALLBACK_BANNER = "";
 
 const fadeUp = (delay: number) => ({
   initial: { opacity: 0, y: 32 },
