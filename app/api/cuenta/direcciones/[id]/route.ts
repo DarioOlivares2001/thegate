@@ -5,6 +5,51 @@ import { normalizeClienteEmail } from "@/lib/clientes/upsertClienteFromOrder";
 import { getCuentaSessionFromCookies } from "@/lib/cuenta/session";
 
 export const runtime = "nodejs";
+type AdminClient = ReturnType<typeof createAdminClient>;
+type ClienteIdRow = {
+  id: string | number;
+};
+type ClienteDireccionUpdate = {
+  nombre?: string;
+  telefono?: string;
+  direccion?: string;
+  comuna?: string;
+  ciudad?: string;
+  region?: string;
+  referencia?: string | null;
+  is_default?: boolean;
+};
+type ClienteDireccionRow = ClienteDireccionUpdate & {
+  id: string | number;
+  cliente_id: string | number;
+};
+type AddressPayload = {
+  nombre?: string;
+  telefono?: string;
+  direccion?: string;
+  comuna?: string;
+  ciudad?: string;
+  region?: string;
+  referencia?: string;
+  principal?: boolean;
+};
+
+const clienteDireccionesTable = (admin: AdminClient) =>
+  admin.from("cliente_direcciones") as unknown as {
+    update: (values: ClienteDireccionUpdate) => {
+      eq: (column: string, value: string | number) => Promise<{ error: unknown }>;
+    };
+    select: (columns: string) => {
+      eq: (column: string, value: string | number) => {
+        eq: (column: string, value: string | number) => {
+          maybeSingle: () => Promise<{ data: ClienteDireccionRow | null; error: unknown }>;
+        };
+      };
+    };
+    delete: () => {
+      eq: (column: string, value: string | number) => Promise<{ error: unknown }>;
+    };
+  };
 
 const patchSchema = z.object({
   nombre: z.string().min(1).max(120).optional(),
@@ -17,16 +62,16 @@ const patchSchema = z.object({
 });
 
 async function assertOwnDireccion(
-  admin: any,
+  admin: AdminClient,
   email: string,
   direccionId: string
 ): Promise<{ ok: true; clienteId: string } | { ok: false; status: number; message: string }> {
   const norm = normalizeClienteEmail(email);
-  const { data: c } = await admin.from("clientes").select("id").eq("email", norm).maybeSingle();
+  const { data } = await admin.from("clientes").select("id").eq("email", norm).maybeSingle();
+  const c = data as ClienteIdRow | null;
   if (!c?.id) return { ok: false, status: 404, message: "Cliente no encontrado." };
   const clienteId = String(c.id);
-  const { data: row } = await admin
-    .from("cliente_direcciones")
+  const { data: row } = await clienteDireccionesTable(admin)
     .select("id")
     .eq("id", direccionId)
     .eq("cliente_id", clienteId)
@@ -45,19 +90,21 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
 
-  let json: unknown;
+  let body: AddressPayload;
   try {
-    json = await request.json();
+    body = (await request.json()) as AddressPayload;
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const parsed = patchSchema.safeParse(json);
+  const parsed = patchSchema.safeParse({
+    ...body,
+    is_default: body.principal,
+  });
   if (!parsed.success) {
     return NextResponse.json({ error: "Datos inválidos." }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminClient() as any;
+  const admin = createAdminClient();
   const own = await assertOwnDireccion(admin, session.email, id);
   if (!own.ok) {
     return NextResponse.json({ error: own.message }, { status: own.status });
@@ -74,7 +121,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   if ("is_default" in parsed.data) {
     if (p.is_default === true) {
-      await admin.from("cliente_direcciones").update({ is_default: false }).eq("cliente_id", own.clienteId);
+      await clienteDireccionesTable(admin).update({ is_default: false }).eq("cliente_id", own.clienteId);
       patch.is_default = true;
     } else {
       patch.is_default = false;
@@ -85,9 +132,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ ok: true as const });
   }
 
-  const { error } = await admin.from("cliente_direcciones").update(patch).eq("id", id);
+  const { error } = await clienteDireccionesTable(admin)
+    .update(patch as ClienteDireccionUpdate)
+    .eq("id", id);
   if (error) {
-    console.error("[cuenta-direcciones] patch", error.message);
+    const err = error as { message?: string } | null;
+    console.error("[cuenta-direcciones] patch", err?.message ?? String(error));
     return NextResponse.json({ error: "No se pudo actualizar." }, { status: 500 });
   }
 
@@ -104,16 +154,16 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminClient() as any;
+  const admin = createAdminClient();
   const own = await assertOwnDireccion(admin, session.email, id);
   if (!own.ok) {
     return NextResponse.json({ error: own.message }, { status: own.status });
   }
 
-  const { error } = await admin.from("cliente_direcciones").delete().eq("id", id);
+  const { error } = await clienteDireccionesTable(admin).delete().eq("id", id);
   if (error) {
-    console.error("[cuenta-direcciones] delete", error.message);
+    const err = error as { message?: string } | null;
+    console.error("[cuenta-direcciones] delete", err?.message ?? String(error));
     return NextResponse.json({ error: "No se pudo eliminar." }, { status: 500 });
   }
 

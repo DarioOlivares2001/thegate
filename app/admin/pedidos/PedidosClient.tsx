@@ -30,7 +30,26 @@ const FILTERS = [
   { key: "delivered", label: "Entregados" },
   { key: "cancelled", label: "Cancelados" },
 ] as const;
-const VALID_FILTERS = new Set(FILTERS.map((f) => f.key));
+type OrderFilter =
+  | "all"
+  | "pending"
+  | "paid"
+  | "preparing"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "por-preparar";
+
+const VALID_FILTERS = new Set<OrderFilter>([
+  "all",
+  "pending",
+  "paid",
+  "preparing",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "por-preparar",
+]);
 const PAID_NOT_PREPARED_KEYS = new Set(["paid", "pagado", "payment_confirmed"]);
 const PREPARED_OR_CLOSED_KEYS = new Set(["preparing", "shipped", "delivered", "cancelled"]);
 
@@ -50,6 +69,10 @@ function isPorPrepararStatus(status: string): boolean {
   return PAID_NOT_PREPARED_KEYS.has(status) && !PREPARED_OR_CLOSED_KEYS.has(status);
 }
 
+function isOrderFilter(value: string | undefined): value is OrderFilter {
+  return !!value && VALID_FILTERS.has(value as OrderFilter);
+}
+
 function hoursSince(isoDate: string | null | undefined): number {
   if (!isoDate) return 0;
   const t = new Date(isoDate).getTime();
@@ -61,8 +84,8 @@ function hoursSince(isoDate: string | null | undefined): number {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function PedidosClient({ orders, initialFilter }: { orders: any[]; initialFilter?: string }) {
-  const initial = initialFilter && VALID_FILTERS.has(initialFilter) ? initialFilter : "all";
-  const [filter, setFilter] = useState(initial);
+  const initial: OrderFilter = isOrderFilter(initialFilter) ? initialFilter : "all";
+  const [filter, setFilter] = useState<OrderFilter>(initial);
   const [search, setSearch] = useState("");
   const normalizedOrders = useMemo(
     () =>

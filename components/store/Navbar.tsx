@@ -220,7 +220,7 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
 
   const cuentaControl = (opts: {
     onNavigate?: () => void;
-    menuWrapRef: RefObject<HTMLDivElement | null>;
+    menuWrapRef: RefObject<HTMLDivElement>;
     mountMenuPanel: boolean;
   }) => {
     if (!hasClienteSession) {
