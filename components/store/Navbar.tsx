@@ -57,8 +57,13 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
   const openDrawer = useCartStore((s) => s.openDrawer);
   const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [hasClienteSession, setHasClienteSession] = useState(false);
+  const [clienteSessionStatus, setClienteSessionStatus] = useState<
+    "loading" | "logged_out" | "logged_in"
+  >("loading");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  const hasClienteSession = clienteSessionStatus === "logged_in";
+  const clienteSessionLoading = clienteSessionStatus === "loading";
   /** Solo una fila (móvil o desktop) monta el panel del menú; evita dos `role="menu"` en el DOM. */
   const [desktopViewport, setDesktopViewport] = useState(false);
   /** Hay dos instancias de cuentaControl (desktop y móvil); un solo ref haría que clicks en una instancia se consideren “fuera” de la otra. */
@@ -82,10 +87,22 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
   const syncClienteSession = useCallback(async () => {
     try {
       const res = await fetch("/api/cuenta/session", { cache: "no-store" });
-      const data = await res.json();
-      setHasClienteSession(Boolean(data.loggedIn));
+
+      if (!res.ok) {
+        setClienteSessionStatus("logged_out");
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+
+      if (!data || typeof data.loggedIn !== "boolean") {
+        setClienteSessionStatus("logged_out");
+        return;
+      }
+
+      setClienteSessionStatus(data.loggedIn ? "logged_in" : "logged_out");
     } catch {
-      setHasClienteSession(false);
+      setClienteSessionStatus("logged_out");
     }
   }, []);
 
@@ -137,7 +154,7 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
     } catch {
       // aun así cerramos UI local
     }
-    setHasClienteSession(false);
+    setClienteSessionStatus("logged_out");
     setUserMenuOpen(false);
     setMobileOpen(false);
     dispatchClienteSessionChanged();
@@ -173,7 +190,7 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
         <img
           src={logoSrc}
           alt={settings.store_name}
-          className="h-[var(--logo-size-mobile)] w-auto rounded-md object-contain md:h-[var(--logo-size-desktop)]"
+          className="h-[var(--logo-size-mobile)] w-auto max-w-[min(11rem,calc(100vw-9.5rem))] shrink-0 rounded-md object-contain md:h-[var(--logo-size-desktop)] md:max-w-none"
         />
       ) : null}
       {showText ? (
@@ -218,11 +235,26 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
   const menuLinkClass =
     "block w-full cursor-pointer rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-[var(--color-border)]/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-inset";
 
+  const cuentaIconPlaceholder = (
+    <div
+      className="inline-flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] p-2"
+      style={{ color: navbarTextColor }}
+      aria-hidden
+      aria-busy="true"
+    >
+      <div className="h-6 w-6 shrink-0 animate-pulse rounded-md bg-[var(--color-border)]/45" />
+    </div>
+  );
+
   const cuentaControl = (opts: {
     onNavigate?: () => void;
     menuWrapRef: RefObject<HTMLDivElement>;
     mountMenuPanel: boolean;
   }) => {
+    if (clienteSessionLoading) {
+      return cuentaIconPlaceholder;
+    }
+
     if (!hasClienteSession) {
       return (
         <Link
@@ -230,30 +262,36 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
           onClick={opts.onNavigate}
           title="Mi cuenta"
           aria-label={cuentaAriaLoggedOut}
-          className="rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40"
+          className="inline-flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40"
           style={{ color: navbarTextColor }}
         >
-          <User className="h-6 w-6" strokeWidth={1.75} />
+          <User className="h-6 w-6 shrink-0" strokeWidth={1.75} />
         </Link>
       );
     }
 
     return (
-      <div ref={opts.menuWrapRef} className="relative">
+      <div ref={opts.menuWrapRef} className="relative shrink-0">
         <button
           type="button"
           title="Mi cuenta"
           aria-label={cuentaAriaLoggedIn}
           aria-expanded={userMenuOpen}
           aria-haspopup="menu"
-          onClick={() => setUserMenuOpen((o) => !o)}
-          className={`rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] ${
+          onClick={() => {
+            setUserMenuOpen((o) => {
+              const next = !o;
+              if (next) setMobileOpen(false);
+              return next;
+            });
+          }}
+          className={`inline-flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] ${
             userMenuOpen
               ? "bg-[var(--color-primary)]/18 ring-2 ring-[var(--color-primary)]/45"
               : "bg-[var(--color-primary)]/10 ring-1 ring-[var(--color-primary)]/30 hover:bg-[var(--color-primary)]/14"
           } text-[var(--color-primary)]`}
         >
-          <User className="h-6 w-6" strokeWidth={1.75} aria-hidden />
+          <User className="h-6 w-6 shrink-0" strokeWidth={1.75} aria-hidden />
         </button>
         {userMenuOpen && opts.mountMenuPanel && (
           <div
@@ -320,10 +358,10 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
           : "Abrir carrito"
       }
       suppressHydrationWarning
-      className="relative rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40 md:-mr-2"
+      className="relative inline-flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] p-2 transition-colors duration-[var(--transition-fast)] hover:bg-[var(--color-border)]/40 md:-mr-2"
       style={{ color: navbarTextColor }}
     >
-      <ShoppingBag className="h-6 w-6" strokeWidth={1.75} />
+      <ShoppingBag className="h-6 w-6 shrink-0" strokeWidth={1.75} />
 
       {mounted && itemCount > 0 && (
         <span
@@ -336,7 +374,7 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
     </button>
   );
 
-  const cuentaHintDesktop = !hasClienteSession ? (
+  const cuentaHintDesktop = clienteSessionStatus === "logged_out" ? (
     <div className="hidden max-w-[148px] flex-col items-end justify-center pr-1 text-right md:flex lg:max-w-[200px]">
       <span
         className="text-[10px] font-medium leading-snug text-[var(--color-text-muted)]"
@@ -348,10 +386,12 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
   ) : null;
 
   const accountAndCart = (
-    <div className="flex items-center justify-end gap-0.5 md:gap-2">
+    <div className="flex min-w-0 items-center justify-end gap-0.5 md:gap-2">
       {cuentaHintDesktop}
-      {cuentaControl({ menuWrapRef: userMenuWrapDesktopRef, mountMenuPanel: desktopViewport })}
-      {cart}
+      <div className="flex shrink-0 items-center gap-0.5 md:gap-2">
+        {cuentaControl({ menuWrapRef: userMenuWrapDesktopRef, mountMenuPanel: desktopViewport })}
+        {cart}
+      </div>
     </div>
   );
 
@@ -383,20 +423,26 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
       {/* Solo la barra recibe clics: evita que extensiones del sticky (blur/sombra) roben hits al contenido debajo al hacer scroll */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pointer-events-auto">
         {/* Mobile */}
-        <div className="grid h-16 grid-cols-[40px_1fr_40px] items-center gap-2 md:hidden">
+        <div className="grid h-16 grid-cols-[auto_1fr_auto] items-center gap-2 overflow-visible md:hidden">
           <button
             type="button"
-            onClick={() => setMobileOpen((v) => !v)}
+            onClick={() => {
+              setMobileOpen((prev) => {
+                const next = !prev;
+                if (next) setUserMenuOpen(false);
+                return next;
+              });
+            }}
             aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
-            className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] transition-colors hover:bg-[var(--color-border)]/40"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors hover:bg-[var(--color-border)]/40"
             style={{ color: navbarTextColor }}
           >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {mobileOpen ? <X className="h-5 w-5 shrink-0" /> : <Menu className="h-5 w-5 shrink-0" />}
           </button>
 
-          <div className={`flex min-w-0 ${mobileBrandAlign}`}>{brand}</div>
+          <div className={`flex min-w-0 overflow-visible ${mobileBrandAlign}`}>{brand}</div>
 
-          <div className="justify-self-end flex items-center gap-0.5">
+          <div className="relative z-[1] flex shrink-0 items-center justify-end gap-1 justify-self-end">
             {cuentaControl({
               menuWrapRef: userMenuWrapMobileRef,
               onNavigate: () => setMobileOpen(false),
@@ -425,84 +471,6 @@ export function Navbar({ settings }: { settings: StoreSettingsView }) {
               >
                 Nosotros
               </Link>
-              {!hasClienteSession ? (
-                <p
-                  className="mt-1 border-t border-[var(--color-border)]/60 px-3 pt-2 text-[10px] leading-snug text-[var(--color-text-muted)]"
-                  style={{ opacity: 0.95 }}
-                >
-                  Entra a tu cuenta y accede a descuentos exclusivos
-                </p>
-              ) : null}
-              {hasClienteSession ? (
-                <>
-                  <p
-                    className="mt-1 border-t border-[var(--color-border)]/60 px-3 pt-2 text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]"
-                    style={{ opacity: 0.95 }}
-                  >
-                    Tu cuenta
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => handleUserMenuNavigate("/cuenta/datos", () => setMobileOpen(false))}
-                    className="mt-0.5 block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
-                    style={{ color: navbarTextColor }}
-                  >
-                    Mis datos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUserMenuNavigate("/cuenta/direcciones", () => setMobileOpen(false))}
-                    className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
-                    style={{ color: navbarTextColor }}
-                  >
-                    Mis direcciones
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUserMenuNavigate("/cuenta/pedidos", () => setMobileOpen(false))}
-                    className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
-                    style={{ color: navbarTextColor }}
-                  >
-                    Mis pedidos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUserMenuNavigate("/seguimiento", () => setMobileOpen(false))}
-                    className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
-                    style={{ color: navbarTextColor }}
-                  >
-                    Seguimiento
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleLogout()}
-                    className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-[var(--color-error)] transition-colors hover:bg-[var(--color-error)]/8"
-                  >
-                    Cerrar sesión
-                  </button>
-                </>
-              ) : (
-                <Link
-                  href={loginHref}
-                  onClick={() => setMobileOpen(false)}
-                  className="mt-0.5 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--color-border)]/30"
-                  style={{ color: navbarTextColor }}
-                >
-                  <User className="h-4 w-4 shrink-0 opacity-80" strokeWidth={1.75} aria-hidden />
-                  Iniciar sesión
-                </Link>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  openDrawer();
-                  setMobileOpen(false);
-                }}
-                className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--color-border)]/30"
-                style={{ color: navbarTextColor }}
-              >
-                Ver carrito
-              </button>
             </div>
           </div>
         )}

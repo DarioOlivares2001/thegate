@@ -165,7 +165,7 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
               <ProductCard
                 key={product.id}
                 product={product}
-                priority={i < 4}
+                priority={i < 2}
               />
             ))}
           </div>

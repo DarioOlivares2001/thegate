@@ -66,7 +66,7 @@ export function ProductCard({ product, priority = false, selectedVariant }: Prod
             src={coverImage}
             alt={product.name}
             fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             priority={priority}
           />
@@ -127,7 +127,7 @@ export function ProductCard({ product, priority = false, selectedVariant }: Prod
           ) : (
             <>
               <span className="sm:hidden">Agregar</span>
-              <span className="hidden sm:inline">Agregar y desbloquear</span>
+              <span className="hidden sm:inline">Agregar</span>
             </>
           )}
         </Button>
