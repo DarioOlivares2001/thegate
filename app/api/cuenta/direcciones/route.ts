@@ -12,10 +12,9 @@ type ClienteRow = {
 type ClienteDireccionInsert = {
   cliente_id: string;
   nombre: string;
-  telefono: string;
+  telefono: string | null;
   direccion: string;
   comuna: string;
-  ciudad: string;
   region: string;
   referencia?: string | null;
   is_default: boolean;
@@ -35,11 +34,26 @@ type AddressPayload = {
   telefono?: string;
   direccion?: string;
   comuna?: string;
-  ciudad?: string;
   region?: string;
   referencia?: string;
   principal?: boolean;
+  is_default?: boolean;
 };
+
+function logSupabaseError(context: string, error: unknown) {
+  const e = error as {
+    message?: string;
+    details?: string;
+    hint?: string;
+    code?: string;
+  };
+  console.error(`[cuenta-direcciones] ${context}`, {
+    message: e?.message,
+    details: e?.details,
+    hint: e?.hint,
+    code: e?.code,
+  });
+}
 
 const clienteDireccionesTable = (admin: AdminClient) =>
   admin.from("cliente_direcciones") as unknown as {
@@ -107,8 +121,7 @@ export async function GET() {
     .order("created_at", { ascending: true });
 
   if (error) {
-    const err = error as { message?: string } | null;
-    console.error("[cuenta-direcciones] list", err?.message ?? String(error));
+    logSupabaseError("list", error);
     return NextResponse.json({ error: "No se pudieron cargar las direcciones." }, { status: 500 });
   }
 
@@ -129,7 +142,8 @@ export async function POST(request: Request) {
   }
   const parsed = postSchema.safeParse({
     ...body,
-    is_default: body.principal,
+    is_default:
+      typeof body.principal === "boolean" ? body.principal : typeof body.is_default === "boolean" ? body.is_default : undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Datos inválidos." }, { status: 400 });
@@ -148,24 +162,24 @@ export async function POST(request: Request) {
     await clienteDireccionesTable(admin).update({ is_default: false }).eq("cliente_id", String(clienteId));
   }
 
+  const telefonoVal = d.telefono?.trim() || null;
+
   const { data: inserted, error: insErr } = await clienteDireccionesTable(admin)
     .insert({
       cliente_id: String(clienteId),
       nombre: d.nombre.trim(),
       direccion: d.direccion.trim(),
       comuna: d.comuna.trim(),
-      ciudad: body.ciudad?.trim() || "",
       region: d.region.trim(),
       referencia: d.referencia?.trim() || null,
-      telefono: d.telefono?.trim() || "",
+      telefono: telefonoVal,
       is_default: isDefault,
     })
     .select("id")
     .single();
 
   if (insErr) {
-    const err = insErr as { message?: string } | null;
-    console.error("[cuenta-direcciones] insert", err?.message ?? String(insErr));
+    logSupabaseError("insert", insErr);
     return NextResponse.json({ error: "No se pudo crear la dirección." }, { status: 500 });
   }
 

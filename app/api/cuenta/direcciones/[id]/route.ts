@@ -11,10 +11,9 @@ type ClienteIdRow = {
 };
 type ClienteDireccionUpdate = {
   nombre?: string;
-  telefono?: string;
+  telefono?: string | null;
   direccion?: string;
   comuna?: string;
-  ciudad?: string;
   region?: string;
   referencia?: string | null;
   is_default?: boolean;
@@ -28,11 +27,26 @@ type AddressPayload = {
   telefono?: string;
   direccion?: string;
   comuna?: string;
-  ciudad?: string;
   region?: string;
   referencia?: string;
   principal?: boolean;
+  is_default?: boolean;
 };
+
+function logSupabaseError(context: string, error: unknown) {
+  const e = error as {
+    message?: string;
+    details?: string;
+    hint?: string;
+    code?: string;
+  };
+  console.error(`[cuenta-direcciones] ${context}`, {
+    message: e?.message,
+    details: e?.details,
+    hint: e?.hint,
+    code: e?.code,
+  });
+}
 
 const clienteDireccionesTable = (admin: AdminClient) =>
   admin.from("cliente_direcciones") as unknown as {
@@ -98,7 +112,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
   const parsed = patchSchema.safeParse({
     ...body,
-    is_default: body.principal,
+    is_default:
+      typeof body.principal === "boolean" ? body.principal : typeof body.is_default === "boolean" ? body.is_default : undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Datos inválidos." }, { status: 400 });
@@ -136,8 +151,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .update(patch as ClienteDireccionUpdate)
     .eq("id", id);
   if (error) {
-    const err = error as { message?: string } | null;
-    console.error("[cuenta-direcciones] patch", err?.message ?? String(error));
+    logSupabaseError("patch", error);
     return NextResponse.json({ error: "No se pudo actualizar." }, { status: 500 });
   }
 
@@ -162,8 +176,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
 
   const { error } = await clienteDireccionesTable(admin).delete().eq("id", id);
   if (error) {
-    const err = error as { message?: string } | null;
-    console.error("[cuenta-direcciones] delete", err?.message ?? String(error));
+    logSupabaseError("delete", error);
     return NextResponse.json({ error: "No se pudo eliminar." }, { status: 500 });
   }
 

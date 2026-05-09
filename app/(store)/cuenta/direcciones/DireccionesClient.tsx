@@ -129,7 +129,7 @@ export function DireccionesClient() {
   function openNew() {
     setEditingId(null);
     setForm(emptyForm);
-    setIsDefault(list.length === 0);
+    setIsDefault((Array.isArray(list) ? list : []).length === 0);
     setErrors({});
     setShowForm(true);
   }
@@ -342,7 +342,7 @@ export function DireccionesClient() {
 
       {loading ? (
         <p className="text-sm text-[var(--color-text-muted)]">Cargando…</p>
-      ) : list.length === 0 ? (
+      ) : (Array.isArray(list) ? list : []).length === 0 ? (
         <p className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-background)] p-6 text-center text-sm text-[var(--color-text-muted)]">
           No tienes direcciones guardadas. Agrega una para usarla en el checkout.
         </p>
