@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { buildThemeCssProperties } from "@/lib/store-settings/buildThemeCssProperties";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${settings.store_name}`,
     },
     description: settings.store_tagline || "La mejor experiencia de compra online del país.",
-    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+    metadataBase: new URL(getPublicSiteUrl()),
   };
 }
 

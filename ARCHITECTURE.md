@@ -44,7 +44,8 @@ FLOW_MOCK=true   # fuerza el modo sandbox sin llamar a Flow
 NEXT_PUBLIC_META_PIXEL_ID=
 
 # App
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=http://localhost:3000   # URL canónica (Flow, emails). En Vercel configurar por entorno.
+# SITE_URL=…                                 # opcional; fallback servidor si no hay NEXT_PUBLIC_SITE_URL
 NEXT_PUBLIC_SITE_NAME=TheGate
 
 # Email
@@ -55,6 +56,11 @@ ADMIN_EMAIL=
 ```
 
 El modo mock de Flow se activa si `FLOW_MOCK=true` o si `FLOW_API_KEY` contiene la cadena "sandbox".
+
+**URL pública (`lib/site-url.ts` → `getPublicSiteUrl`)**  
+Orden: `NEXT_PUBLIC_SITE_URL` → `SITE_URL` → `https://VERCEL_URL` → `http://localhost:3000`.  
+En **Vercel** conviene definir `NEXT_PUBLIC_SITE_URL` con el dominio canónico de producción (HTTPS, sin barra final). Si falta en un preview, se usa el host del deploy actual (`VERCEL_URL`).  
+Tras el pago, el checkout fuerza el origen actual cuando la API devuelve `/checkout/confirmacion` bajo otro host (p. ej. mock con env antiguo); las URLs de **Flow** (`*.flow.cl`) no se reescriben.
 
 ---
 

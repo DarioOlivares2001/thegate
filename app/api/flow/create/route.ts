@@ -3,11 +3,11 @@ import crypto from "crypto";
 import { upsertClienteFromOrder } from "@/lib/clientes/upsertClienteFromOrder";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderNotification } from "@/lib/email/sendOrderNotification";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const FLOW_API_URL   = process.env.FLOW_API_URL            ?? "https://sandbox.flow.cl/api";
 const FLOW_API_KEY   = process.env.FLOW_API_KEY            ?? "";
 const FLOW_SECRET_KEY = process.env.FLOW_SECRET_KEY        ?? "";
-const SITE_URL       = process.env.NEXT_PUBLIC_SITE_URL    ?? "http://localhost:3000";
 const FLOW_MOCK      =
   process.env.FLOW_MOCK === "true" || FLOW_API_KEY.toLowerCase().includes("sandbox");
 
@@ -119,8 +119,9 @@ export async function POST(request: NextRequest) {
         console.error("[email-error] Falló notificación de pedido:", emailError);
       }
 
+      const siteUrl = getPublicSiteUrl();
       return NextResponse.json({
-        redirectUrl: `${SITE_URL}/checkout/confirmacion?order=${orderNumber}&token=${mockToken}&mock=1`,
+        redirectUrl: `${siteUrl}/checkout/confirmacion?order=${orderNumber}&token=${mockToken}&mock=1`,
         token:        mockToken,
         flowOrder:    0,
         commerceOrder: `TG-${orderNumber}`,
@@ -200,14 +201,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const siteUrl = getPublicSiteUrl();
     const params: Record<string, string> = {
       apiKey:           FLOW_API_KEY,
       subject:          `Compra TheGate — ${commerceOrder}`,
       currency:         "CLP",
       amount:           String(Math.round(total)),
       email:            customer.email,
-      urlConfirmation:  `${SITE_URL}/api/flow/webhook`,
-      urlReturn:        `${SITE_URL}/checkout/confirmacion`,
+      urlConfirmation:  `${siteUrl}/api/flow/webhook`,
+      urlReturn:        `${siteUrl}/checkout/confirmacion`,
       commerceOrder,
     };
     params.s = sign(params, FLOW_SECRET_KEY);

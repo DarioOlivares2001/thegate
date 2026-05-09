@@ -1,6 +1,7 @@
 import { sendEmail } from "@/lib/email/resend";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 import { getReviewPendingHtml } from "@/lib/email/templates/reviewPending";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 type ReviewNotificationPayload = {
   product: { id: string; name?: string | null };
@@ -26,7 +27,7 @@ export async function sendReviewNotification(payload: ReviewNotificationPayload)
     authorEmail: payload.authorEmail ?? "",
     rating: payload.rating,
     comment: payload.comment,
-    adminUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/admin/resenas?tab=pending`,
+    adminUrl: `${getPublicSiteUrl()}/admin/resenas?tab=pending`,
     branding: {
       storeName: settings.store_name,
       logoUrl: settings.logo_url || settings.logo_square_url || "",

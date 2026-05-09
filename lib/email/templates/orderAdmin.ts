@@ -1,3 +1,5 @@
+import { getPublicSiteUrl } from "@/lib/site-url";
+
 type OrderItem = {
   name?: string | null;
   quantity?: number | null;
@@ -62,7 +64,7 @@ export function getOrderAdminHtml(payload: Payload) {
   const instagramUrl = String(payload.branding?.instagramUrl ?? "").trim();
   const tiktokUrl = String(payload.branding?.tiktokUrl ?? "").trim();
   const status = statusLabel(payload.orderStatus);
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
+  const baseUrl = getPublicSiteUrl().replace(/\/+$/, "");
   const adminOrderUrl = payload.orderId
     ? `${baseUrl}/admin/pedidos/${encodeURIComponent(payload.orderId)}`
     : `${baseUrl}/admin/pedidos`;

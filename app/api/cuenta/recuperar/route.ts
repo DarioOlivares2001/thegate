@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeClienteEmail } from "@/lib/clientes/upsertClienteFromOrder";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 import { sendResetPasswordEmail } from "@/lib/email/sendResetPasswordEmail";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 export const runtime = "nodejs";
 
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true as const });
       }
 
-      const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+      const base = getPublicSiteUrl().replace(/\/+$/, "");
       const resetUrl = `${base}/cuenta/reset?token=${encodeURIComponent(token)}`;
       const settings = await getStoreSettings();
 

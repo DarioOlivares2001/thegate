@@ -44,6 +44,28 @@ const CHILE_REGIONS = [
   "Magallanes y de la Antártica Chilena",
 ];
 
+/** Mock/API puede devolver URL absoluta con host obsoleto; Flow debe seguir en flow.cl. */
+function resolvePaymentRedirectUrl(redirectUrl: unknown): string {
+  const raw = String(redirectUrl ?? "").trim();
+  if (typeof window === "undefined") return raw || "/checkout/confirmacion";
+  if (!raw) return `${window.location.origin}/checkout/confirmacion`;
+  if (raw.startsWith("/")) return `${window.location.origin}${raw}`;
+  if (!raw.startsWith("http")) return `${window.location.origin}/${raw.replace(/^\//, "")}`;
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase();
+    const isFlowHost = host === "flow.cl" || host.endsWith(".flow.cl");
+    if (isFlowHost) return raw;
+    const pathAndQuery = u.pathname + u.search;
+    if (pathAndQuery.startsWith("/checkout/confirmacion")) {
+      return `${window.location.origin}${pathAndQuery}`;
+    }
+  } catch {
+    return raw;
+  }
+  return raw;
+}
+
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 
 const schema = z.object({
@@ -478,12 +500,10 @@ export default function CheckoutPage() {
         return;
       }
 
+      const finalUrl = resolvePaymentRedirectUrl(data.redirectUrl);
+
       try {
-        const redirect = String(data.redirectUrl ?? "");
-        const abs = redirect.startsWith("http")
-          ? redirect
-          : `${window.location.origin}${redirect.startsWith("/") ? "" : "/"}${redirect}`;
-        const u = new URL(abs);
+        const u = new URL(finalUrl);
         const ord = u.searchParams.get("order");
         if (ord && result.data.email) {
           sessionStorage.setItem(
@@ -500,7 +520,7 @@ export default function CheckoutPage() {
         // ignorar si la URL de retorno no es parseable
       }
 
-      window.location.href = data.redirectUrl;
+      window.location.href = finalUrl;
     } catch {
       toast.error("Error de conexión. Verifica tu internet e intenta nuevamente.");
     } finally {
