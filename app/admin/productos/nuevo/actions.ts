@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeProductCategory } from "@/lib/product/categories";
+import {
+  parseVolumeDiscountFromFormData,
+  volumeDiscountToJsonFields,
+} from "@/lib/admin/productVolumeDiscounts";
 
 export async function createProductAction(
   formData: FormData
@@ -141,6 +145,11 @@ export async function createProductAction(
   }
 
   const normalizedCategory = normalizeProductCategory(formData.get("category") as string);
+
+  const volumeParsed = parseVolumeDiscountFromFormData(formData);
+  if (!volumeParsed.ok) return { error: volumeParsed.error };
+  const volumeFields = volumeDiscountToJsonFields(volumeParsed.data);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: productData, error } = await (supabase as any)
     .from("products")
@@ -158,6 +167,7 @@ export async function createProductAction(
     has_variants: hasVariants,
     options: hasVariants ? options : null,
     active: formData.get("active") === "true",
+    ...volumeFields,
   })
     .select("id")
     .single();
@@ -333,6 +343,11 @@ export async function updateProductAction(
   }
 
   const normalizedCategory = normalizeProductCategory(formData.get("category") as string);
+
+  const volumeParsed = parseVolumeDiscountFromFormData(formData);
+  if (!volumeParsed.ok) return { error: volumeParsed.error };
+  const volumeFields = volumeDiscountToJsonFields(volumeParsed.data);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("products").update({
     name: (formData.get("name") as string).trim(),
@@ -348,6 +363,7 @@ export async function updateProductAction(
     has_variants: hasVariants,
     options: hasVariants ? options : null,
     active: formData.get("active") === "true",
+    ...volumeFields,
   }).eq("id", id);
 
   if (error) return { error: error.message };

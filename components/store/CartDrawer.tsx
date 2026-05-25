@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Plus, Minus, ShoppingBag, ArrowRight, MessageCircle } from "lucide-react";
-import { useCartStore } from "@/lib/cart/store";
+import { useCartStore, cartItemToDiscountInput, cartItemNeedsVariantFix, type CartItem } from "@/lib/cart/store";
 import { formatPrice } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
 import {
@@ -13,17 +13,69 @@ import {
   buildWhatsAppCartUrl,
   normalizeWhatsAppDigits,
 } from "@/lib/cart/whatsappCartOrder";
+import {
+  computeUpsellDiscountPercentFromPrices,
+  computeUpsellSavingsDisplay,
+  resolveUpsellReferencePrice,
+} from "@/lib/cart/upsellOfferDisplay";
+import {
+  getApplicableProductDiscount,
+  getNextDiscountStep,
+  isDiscountEnabled,
+  normalizeDiscountSteps,
+  formatDiscountTierMinQtyLabel,
+  isLastDiscountTier,
+} from "@/lib/discounts";
 
 type UpsellOffer = {
   id: string;
   name: string;
   image: string;
+  /** Precio lista (tienda). */
   price: number;
+  compare_at_price?: number | null;
   offerPrice: number;
   discountPercent: number;
   savings: number;
   stock: number;
+  discount_enabled?: boolean;
+  discount_max_percent?: number | null;
 };
+
+function CartVolumeHint({ item }: { item: CartItem }) {
+  if (item.isUpsellOffer || item.source === "upsell") return null;
+  const input = cartItemToDiscountInput(item);
+  if (!isDiscountEnabled(input)) return null;
+  const steps = normalizeDiscountSteps(item.discount_steps);
+  if (steps.length === 0) return null;
+  const pct = getApplicableProductDiscount(input, item.quantity);
+  const next = getNextDiscountStep(input, item.quantity);
+  const maxCap = Math.min(100, Math.max(0, Number(item.discount_max_percent) || 0));
+  const nextIsLastTier = Boolean(next && isLastDiscountTier(steps, next.minQty));
+
+  return (
+    <div className="mt-1 space-y-0.5 text-[11px] leading-snug">
+      {pct > 0 ? <p className="font-semibold text-emerald-700">{pct}% OFF por cantidad</p> : null}
+      {next ? (
+        <p className="text-[var(--color-text-muted)]">
+          Agrega {Math.max(0, next.minQty - item.quantity)} más y desbloquea{" "}
+          {Math.min(next.percent, maxCap)}% OFF
+          {nextIsLastTier
+            ? ` (${formatDiscountTierMinQtyLabel(next.minQty, { isLastTier: true })})`
+            : ""}
+        </p>
+      ) : null}
+      {!next && pct > 0 ? (
+        <p className="font-medium text-emerald-800/90">
+          Descuento máximo desbloqueado
+          {steps.length > 0
+            ? ` (${formatDiscountTierMinQtyLabel(steps[steps.length - 1].minQty, { isLastTier: true })})`
+            : ""}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 type CartDrawerProps = {
   enableWhatsappCheckout?: boolean;
@@ -44,6 +96,15 @@ export function CartDrawer({
     let savings = 0;
     let totalOriginal = 0;
     for (const item of items) {
+      const list = item.unitListPrice ?? item.price;
+      if (
+        !item.isUpsellOffer &&
+        item.source !== "upsell" &&
+        item.discount_enabled === true &&
+        list > item.price
+      ) {
+        savings += (list - item.price) * item.quantity;
+      }
       const priceComparative = item.originalPrice;
       if (typeof priceComparative === "number" && priceComparative > item.price) {
         savings += (priceComparative - item.price) * item.quantity;
@@ -64,6 +125,8 @@ export function CartDrawer({
     const msg = buildWhatsAppOrderMessage(items, subtotal);
     return buildWhatsAppCartUrl(whatsappDigits, msg);
   }, [whatsappDigits, items, subtotal]);
+
+  const variantLineIssues = useMemo(() => items.filter(cartItemNeedsVariantFix), [items]);
 
   const [offers, setOffers] = useState<UpsellOffer[]>([]);
   const [loadingOffers, setLoadingOffers] = useState(false);
@@ -98,16 +161,29 @@ export function CartDrawer({
   }, [remainingSeconds]);
 
   const resolveOfferVisual = (offer: UpsellOffer) => {
-    const originalPrice = Number.isFinite(offer.price) ? offer.price : 0;
-    const offerPrice = Number.isFinite(offer.offerPrice) ? offer.offerPrice : originalPrice;
-    const computedSavings = Math.max(0, originalPrice - offerPrice);
-    const savings = offer.savings > 0 ? offer.savings : computedSavings;
-    const discountPercent =
-      offer.discountPercent > 0
-        ? offer.discountPercent
-        : originalPrice > 0 && savings > 0
-          ? Math.round((savings / originalPrice) * 100)
-          : 0;
+    const list = Number.isFinite(offer.price) ? offer.price : 0;
+    const offerPrice = Number.isFinite(offer.offerPrice) ? offer.offerPrice : list;
+    const compare = offer.compare_at_price;
+    const originalPrice = resolveUpsellReferencePrice({
+      listPrice: list,
+      compareAtPrice: compare,
+      offerPrice,
+    });
+    const displayCap =
+      offer.discount_enabled === true
+        ? Math.min(100, Math.max(0, Number(offer.discount_max_percent) || 0))
+        : null;
+    const discountPercent = computeUpsellDiscountPercentFromPrices({
+      listPrice: list,
+      compareAtPrice: compare,
+      offerPrice,
+      discountPercentHint:
+        typeof offer.discountPercent === "number" && offer.discountPercent > 0
+          ? offer.discountPercent
+          : null,
+      displayPercentCap: displayCap,
+    });
+    const savings = computeUpsellSavingsDisplay(list, compare, offerPrice);
     return { originalPrice, offerPrice, savings, discountPercent };
   };
 
@@ -155,10 +231,20 @@ export function CartDrawer({
   function addUpsell(offer: UpsellOffer) {
     add({
       product_id: offer.id,
+      has_variants: false,
       name: offer.name,
       price: offer.offerPrice,
       quantity: 1,
       image: offer.image,
+      source: "upsell",
+      applied_discount_percent: offer.discountPercent,
+      expected_unit_price: offer.offerPrice,
+      unitListPrice: offer.price,
+      discount_enabled: offer.discount_enabled === true,
+      discount_max_percent:
+        typeof offer.discount_max_percent === "number" && Number.isFinite(offer.discount_max_percent)
+          ? offer.discount_max_percent
+          : undefined,
       isUpsellOffer: true,
       originalPrice: offer.price,
       discountPercent: offer.discountPercent,
@@ -346,6 +432,35 @@ export function CartDrawer({
               </button>
             </div>
 
+            {variantLineIssues.length > 0 ? (
+              <div
+                role="alert"
+                className="border-b border-amber-300 bg-amber-50 px-5 py-3 text-sm text-amber-950"
+              >
+                <p className="font-semibold">Hay productos sin variante elegida</p>
+                <p className="mt-1 text-amber-900/90">
+                  Elimina este producto y vuelve a agregarlo desde la ficha.
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {variantLineIssues.map((item) => (
+                    <li
+                      key={`${item.product_id}-${item.variant ?? "x"}`}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      <span className="font-medium">{item.name}</span>
+                      <Link
+                        href={item.product_slug ? `/productos/${item.product_slug}` : "/productos"}
+                        onClick={() => closeDrawer()}
+                        className="inline-flex rounded-md bg-amber-800 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-900"
+                      >
+                        Corregir
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             {/* Content */}
             {items.length === 0 ? (
               <EmptyCart onClose={closeDrawer} />
@@ -355,7 +470,7 @@ export function CartDrawer({
                 <ul className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
                   {items.map((item) => (
                     <li
-                      key={`${item.product_id}-${item.variant ?? ""}`}
+                      key={`${item.product_id}-${item.variant_id ?? item.variant ?? ""}`}
                       className="flex gap-4"
                     >
                       {/* Product image */}
@@ -381,9 +496,19 @@ export function CartDrawer({
                                 {item.variant}
                               </p>
                             )}
+                            <p className="mt-0.5 text-xs text-[var(--color-text)]">
+                              <span className="font-medium">{formatPrice(item.price)}</span>
+                              <span className="text-[var(--color-text-muted)]"> c/u</span>
+                            </p>
+                            <CartVolumeHint item={item} />
                           </div>
                           <button
-                            onClick={() => remove(item.product_id, item.variant)}
+                            onClick={() =>
+                              remove(item.product_id, {
+                                variant: item.variant,
+                                variant_id: item.variant_id,
+                              })
+                            }
                             aria-label={`Eliminar ${item.name}`}
                             className="shrink-0 p-1 text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
                           >
@@ -396,11 +521,10 @@ export function CartDrawer({
                           <div className="flex items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-border)] p-0.5">
                             <button
                               onClick={() =>
-                                updateQuantity(
-                                  item.product_id,
-                                  item.quantity - 1,
-                                  item.variant
-                                )
+                                updateQuantity(item.product_id, item.quantity - 1, {
+                                  variant: item.variant,
+                                  variant_id: item.variant_id,
+                                })
                               }
                               aria-label="Reducir cantidad"
                               className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-border)]/40 hover:text-[var(--color-text)] transition-colors disabled:opacity-40"
@@ -413,11 +537,10 @@ export function CartDrawer({
                             </span>
                             <button
                               onClick={() =>
-                                updateQuantity(
-                                  item.product_id,
-                                  item.quantity + 1,
-                                  item.variant
-                                )
+                                updateQuantity(item.product_id, item.quantity + 1, {
+                                  variant: item.variant,
+                                  variant_id: item.variant_id,
+                                })
                               }
                               aria-label="Aumentar cantidad"
                               className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-border)]/40 hover:text-[var(--color-text)] transition-colors"

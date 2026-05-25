@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { z } from "zod";
 import { clsx } from "clsx";
 import { Lock, ChevronDown, ShoppingBag, ArrowLeft, Truck, MessageCircle } from "lucide-react";
-import { useCartStore, type CartItem } from "@/lib/cart/store";
+import { useCartStore, type CartItem, cartItemNeedsVariantFix } from "@/lib/cart/store";
 import { pixelEvents } from "@/lib/pixel/events";
 import { formatPrice } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
@@ -19,11 +19,46 @@ import {
   buildWhatsAppOrderMessage,
   normalizeWhatsAppDigits,
 } from "@/lib/cart/whatsappCartOrder";
+import {
+  CHECKOUT_SHIPPING_COST as SHIPPING_COST,
+  CHECKOUT_SHIPPING_FREE_THRESHOLD as SHIPPING_FREE_THRESHOLD,
+} from "@/lib/checkout/shipping";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SHIPPING_FREE_THRESHOLD = 30_000;
-const SHIPPING_COST = 3_990;
+/** Prefijo fijo Chile móvil WhatsApp; el usuario completa 8 dígitos después del 9. */
+const CHILE_WA_PREFIX = "+56 9";
+const CHILE_WA_DEFAULT = `${CHILE_WA_PREFIX} `;
+
+function extractEightMobileSuffixDigits(allDigits: string): string {
+  const d = allDigits.replace(/\D/g, "");
+  if (d.startsWith("569")) return d.slice(3, 11);
+  if (d.startsWith("56") && d.length >= 3 && d[2] === "9") return d.slice(3, 11);
+  if (d.startsWith("9")) return d.slice(1, 9);
+  if (!d.startsWith("5")) return d.slice(0, 8);
+  return "";
+}
+
+function formatChileWhatsAppFromSuffix(suffixDigits: string): string {
+  const b = suffixDigits.replace(/\D/g, "").slice(0, 8);
+  if (b.length === 0) return CHILE_WA_DEFAULT;
+  if (b.length <= 4) return `${CHILE_WA_PREFIX} ${b}`;
+  return `${CHILE_WA_PREFIX} ${b.slice(0, 4)} ${b.slice(4)}`;
+}
+
+function chileWhatsAppDisplayFromRawInput(raw: string): string {
+  const suffix = extractEightMobileSuffixDigits(raw);
+  return formatChileWhatsAppFromSuffix(suffix);
+}
+
+function normalizeStoredPhoneForInput(raw: string): string {
+  const t = raw.trim();
+  if (!t) return CHILE_WA_DEFAULT;
+  const compact = t.replace(/\s+/g, " ").trim();
+  const mob = chileWhatsAppDisplayFromRawInput(compact);
+  if (/^569\d{8}$/.test(mob.replace(/\D/g, ""))) return mob;
+  return compact.slice(0, 40);
+}
 
 const CHILE_REGIONS = [
   "Arica y Parinacota",
@@ -42,7 +77,31 @@ const CHILE_REGIONS = [
   "Los Lagos",
   "Aysén del General Carlos Ibáñez del Campo",
   "Magallanes y de la Antártica Chilena",
-];
+] as const;
+
+/** Cobertura inicial: comunas por región (select dependiente). Otras regiones usan comuna en texto libre. */
+const COMMUNES_BY_REGION: Record<string, readonly string[]> = {
+  "Libertador General Bernardo O'Higgins": [
+    "Rancagua",
+    "Machalí",
+    "Graneros",
+    "San Francisco de Mostazal",
+    "Codegua",
+  ],
+  "Metropolitana de Santiago": [
+    "Santiago",
+    "Providencia",
+    "Las Condes",
+    "Ñuñoa",
+    "Maipú",
+    "Puente Alto",
+    "La Florida",
+  ],
+};
+
+function regionHasCommuneSelect(region: string): boolean {
+  return Object.prototype.hasOwnProperty.call(COMMUNES_BY_REGION, region);
+}
 
 /** Mock/API puede devolver URL absoluta con host obsoleto; Flow debe seguir en flow.cl. */
 function resolvePaymentRedirectUrl(redirectUrl: unknown): string {
@@ -68,17 +127,32 @@ function resolvePaymentRedirectUrl(redirectUrl: unknown): string {
 
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 
-const schema = z.object({
-  email: z.string().email("Email inválido"),
-  name: z.string().min(3, "Ingresa tu nombre completo"),
-  phone: z
-    .string()
-    .min(9, "Teléfono inválido")
-    .regex(/^[+0-9\s()\-]+$/, "Solo números y símbolos"),
-  address: z.string().min(5, "Ingresa tu dirección completa"),
-  city: z.string().min(2, "Ingresa tu ciudad"),
-  region: z.string().min(1, "Selecciona una región"),
-});
+const schema = z
+  .object({
+    email: z.string().email("Email inválido"),
+    name: z.string().min(3, "Ingresa tu nombre completo"),
+    phone: z
+      .string()
+      .refine(
+        (val) => /^569\d{8}$/.test(val.replace(/\D/g, "")),
+        "Ingresa 8 dígitos después del +56 9"
+      ),
+    address: z.string().min(5, "Ingresa tu dirección completa"),
+    city: z.string().min(2, "Ingresa comuna o ciudad"),
+    region: z.string().min(1, "Selecciona una región"),
+    referencia: z.string().max(300),
+  })
+  .superRefine((data, ctx) => {
+    const list = COMMUNES_BY_REGION[data.region];
+    if (!list?.length) return;
+    if (!list.includes(data.city)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Selecciona una comuna",
+        path: ["city"],
+      });
+    }
+  });
 
 type FormData = z.infer<typeof schema>;
 type FormErrors = Partial<Record<keyof FormData, string>>;
@@ -231,7 +305,7 @@ function OrderSummaryContent({
       {/* Items */}
       <ul className="flex flex-col gap-3">
         {items.map((item) => (
-          <li key={`${item.product_id}-${item.variant ?? ""}`} className="flex gap-3">
+          <li key={`${item.product_id}-${item.variant_id ?? item.variant ?? ""}`} className="flex gap-3">
             <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[var(--radius-sm)] bg-[var(--color-background)] border border-[var(--color-border)]">
               {item.image ? (
                 <Image src={item.image} alt={item.name} fill className="object-cover" sizes="56px" />
@@ -300,10 +374,11 @@ export default function CheckoutPage() {
   const [form, setForm] = useState<FormData>({
     email: "",
     name: "",
-    phone: "",
+    phone: CHILE_WA_DEFAULT,
     address: "",
     city: "",
     region: "",
+    referencia: "",
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [waCfg, setWaCfg] = useState<{
@@ -330,6 +405,7 @@ export default function CheckoutPage() {
             address: string;
             city: string;
             region: string;
+            referencia?: string;
           } | null;
         };
         if (!j.loggedIn || !j.cliente || cancelled) return;
@@ -339,12 +415,19 @@ export default function CheckoutPage() {
           ...prev,
           email: prev.email.trim() ? prev.email : j.cliente!.email,
           name: prev.name.trim() ? prev.name : j.cliente!.name,
-          phone: prev.phone.trim() ? prev.phone : j.cliente!.phone,
+          phone: j.cliente!.phone?.trim()
+            ? normalizeStoredPhoneForInput(j.cliente!.phone)
+            : prev.phone.replace(/\D/g, "").length > 3
+              ? chileWhatsAppDisplayFromRawInput(prev.phone)
+              : CHILE_WA_DEFAULT,
           ...(j.defaultAddress
             ? {
                 address: prev.address.trim() ? prev.address : j.defaultAddress.address,
                 city: prev.city.trim() ? prev.city : j.defaultAddress.city,
                 region: prev.region.trim() ? prev.region : j.defaultAddress.region,
+                referencia: prev.referencia.trim()
+                  ? prev.referencia
+                  : (j.defaultAddress.referencia ?? ""),
               }
             : {}),
         }));
@@ -379,6 +462,7 @@ export default function CheckoutPage() {
   const subtotal = cartTotal();
   const shippingCost = subtotal >= SHIPPING_FREE_THRESHOLD ? 0 : SHIPPING_COST;
   const total = subtotal + shippingCost;
+  const cartNeedsVariantFix = useMemo(() => items.some(cartItemNeedsVariantFix), [items]);
   const { totalSavings, savingsPercent } = useMemo(() => {
     let savings = 0;
     let totalOriginal = 0;
@@ -426,11 +510,27 @@ export default function CheckoutPage() {
     );
   }
 
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = chileWhatsAppDisplayFromRawInput(e.target.value);
+    setForm((prev) => ({ ...prev, phone: next }));
+    if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }));
+  }
+
   function handleChange(field: keyof FormData) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
       if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
+  }
+
+  function handleRegionChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const next = e.target.value;
+    setForm((prev) => ({ ...prev, region: next, city: "" }));
+    setErrors((prev) => ({
+      ...prev,
+      region: undefined,
+      city: undefined,
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -451,6 +551,13 @@ export default function CheckoutPage() {
 
     setLoading(true);
     try {
+      if (items.some(cartItemNeedsVariantFix)) {
+        toast.error(
+          "Elimina el producto afectado y vuelve a agregarlo desde su ficha eligiendo la variante (peso, tamaño, etc.)."
+        );
+        return;
+      }
+
       pixelEvents.initiateCheckout(items);
 
       if (saveShippingToCuenta && cuentaLoggedIn) {
@@ -474,19 +581,45 @@ export default function CheckoutPage() {
         }
       }
 
+      const payloadItems = items.map((i) => ({
+        product_id: i.product_id,
+        variant_id: i.variant_id ?? null,
+        quantity: i.quantity,
+        name: i.name,
+        price: i.price,
+        image: i.image,
+        variant: i.variant,
+        source: i.source === "upsell" ? "upsell" : undefined,
+        applied_discount_percent: i.applied_discount_percent ?? i.discountPercent,
+        expected_unit_price: i.expected_unit_price,
+        isUpsellOffer: i.isUpsellOffer === true,
+        discountPercent: i.discountPercent,
+      }));
+
+      if (process.env.NODE_ENV === "development") {
+        console.log("checkout submit total", {
+          subtotal,
+          shippingCost,
+          total,
+          items: items.map((i) => ({
+            product_id: i.product_id,
+            variant_id: i.variant_id ?? null,
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.price,
+            lineTotal: Math.round(i.price * i.quantity),
+            isUpsellOffer: Boolean(i.isUpsellOffer),
+            source: i.source,
+          })),
+        });
+      }
+
       const res = await fetch("/api/flow/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer: result.data,
-          items: items.map((i) => ({
-            product_id: i.product_id,
-            name: i.name,
-            price: i.price,
-            quantity: i.quantity,
-            image: i.image,
-            variant: i.variant,
-          })),
+          items: payloadItems,
           subtotal,
           shippingCost,
           total,
@@ -586,6 +719,31 @@ export default function CheckoutPage() {
         {/* ── Form ── */}
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8">
 
+          {cartNeedsVariantFix ? (
+            <div
+              role="alert"
+              className="rounded-[var(--radius-md)] border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+            >
+              <p className="font-semibold">Hay productos sin variante elegida</p>
+              <p className="mt-1 text-amber-900/90">
+                Elimina este producto y vuelve a agregarlo desde la ficha.
+              </p>
+              <ul className="mt-2 space-y-2">
+                {items.filter(cartItemNeedsVariantFix).map((item) => (
+                  <li key={`${item.product_id}-${item.variant ?? "x"}`} className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{item.name}</span>
+                    <Link
+                      href={item.product_slug ? `/productos/${item.product_slug}` : "/productos"}
+                      className="inline-flex rounded-md bg-amber-800 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-900"
+                    >
+                      Corregir
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {/* Back link */}
           <Link
             href="/carrito"
@@ -622,10 +780,11 @@ export default function CheckoutPage() {
               <Input
                 label="Teléfono WhatsApp"
                 type="tel"
-                placeholder="+56 9 1234 5678"
+                inputMode="numeric"
+                placeholder="1234 5678"
                 autoComplete="tel"
                 value={form.phone}
-                onChange={handleChange("phone")}
+                onChange={handlePhoneChange}
                 error={errors.phone}
               />
             </div>
@@ -634,45 +793,85 @@ export default function CheckoutPage() {
           {/* Shipping */}
           <section className="flex flex-col gap-4">
             <h2 className="font-display text-lg font-bold text-[var(--color-text)]">
-              Dirección de envío
+              Datos para coordinar tu entrega
             </h2>
-            <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-              {cuentaLoggedIn
-                ? "Si tenías una dirección principal, rellenamos el formulario. Puedes cambiar los datos solo para este pedido. Para actualizar tu cuenta, marca la opción de abajo o edita en «Mis direcciones»."
-                : "Completa tu dirección de envío. No necesitas cuenta para pagar; si más adelante creas cuenta o inicias sesión, podrás guardar direcciones en «Mi cuenta»."}
+            <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
+              No necesitas crear una cuenta. Usaremos estos datos solo para confirmar tu pedido y coordinar el despacho.
             </p>
+            {cuentaLoggedIn ? (
+              <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Si tenías una dirección principal, rellenamos el formulario. Puedes cambiar los datos solo para este
+                pedido. Para actualizar tu cuenta, marca la opción de abajo o edita en «Mis direcciones».
+              </p>
+            ) : null}
+
+            <FormSelect
+              label="Región"
+              required
+              value={form.region}
+              onChange={handleRegionChange}
+              error={errors.region}
+              autoComplete="address-level1"
+            >
+              <option value="">Selecciona una región…</option>
+              {CHILE_REGIONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </FormSelect>
+
+            {regionHasCommuneSelect(form.region) ? (
+              <FormSelect
+                label="Comuna o ciudad"
+                required
+                value={form.city}
+                onChange={handleChange("city")}
+                error={errors.city}
+                disabled={!form.region}
+                autoComplete="address-level2"
+              >
+                <option value="" disabled>
+                  {!form.region ? "Primero selecciona tu región" : "Selecciona comuna…"}
+                </option>
+                {(COMMUNES_BY_REGION[form.region] ?? []).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </FormSelect>
+            ) : (
+              <Input
+                label="Comuna o ciudad"
+                type="text"
+                placeholder="Ej. Viña del Mar"
+                autoComplete="address-level2"
+                value={form.city}
+                onChange={handleChange("city")}
+                error={errors.city}
+                disabled={!form.region}
+              />
+            )}
+
             <Input
               label="Dirección"
               type="text"
-              placeholder="Av. Providencia 1234, Dpto 56"
+              placeholder="Calle, número, depto/torre"
               autoComplete="street-address"
               value={form.address}
               onChange={handleChange("address")}
               error={errors.address}
             />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label="Ciudad"
-                type="text"
-                placeholder="Santiago"
-                autoComplete="address-level2"
-                value={form.city}
-                onChange={handleChange("city")}
-                error={errors.city}
-              />
-              <FormSelect
-                label="Región"
-                value={form.region}
-                onChange={handleChange("region")}
-                error={errors.region}
-                autoComplete="address-level1"
-              >
-                <option value="">Selecciona una región...</option>
-                {CHILE_REGIONS.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </FormSelect>
-            </div>
+            <Input
+              label="Referencia (opcional)"
+              type="text"
+              placeholder="Torre, color de portón, indicaciones para el reparto…"
+              autoComplete="off"
+              value={form.referencia}
+              onChange={handleChange("referencia")}
+              error={errors.referencia}
+            />
+
             {cuentaLoggedIn ? (
               <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)]/90 bg-[var(--color-surface)] px-3.5 py-3 text-sm text-[var(--color-text)]">
                 <input
@@ -695,6 +894,7 @@ export default function CheckoutPage() {
               size="lg"
               fullWidth
               loading={loading}
+              disabled={cartNeedsVariantFix}
               className="bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/90 active:bg-[var(--color-accent)]/80 gap-2"
             >
               <Lock className="h-4 w-4" />
@@ -743,6 +943,7 @@ export default function CheckoutPage() {
               size="lg"
               fullWidth
               loading={loading}
+              disabled={cartNeedsVariantFix}
               onClick={handleSubmit as unknown as React.MouseEventHandler}
               className="mt-5 bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/90 gap-2"
             >

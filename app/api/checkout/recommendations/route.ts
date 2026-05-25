@@ -24,7 +24,9 @@ export async function POST(req: Request) {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("products")
-      .select("id, slug, name, price, cost_price, images, stock, category, tags, has_variants")
+      .select(
+        "id, slug, name, price, cost_price, compare_at_price, images, stock, category, tags, has_variants, discount_enabled, discount_max_percent, discount_steps"
+      )
       .eq("active", true)
       .gt("stock", 0)
       .eq("has_variants", false);

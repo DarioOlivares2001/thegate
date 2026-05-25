@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TrendingUp, ShoppingBag, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeOrderStatusKey } from "@/lib/orders/formatOrderStatus";
+import { getOrderPersistedTotal } from "@/lib/orders/orderDisplayTotals";
 import { formatPrice } from "@/lib/utils/format";
 import type { ChartDay } from "./SalesChart";
 
@@ -103,8 +104,13 @@ async function getDashboardData() {
       ]);
 
     // ── Metrics ──
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sum = (rows: any[]) => rows.reduce((acc: number, r: any) => acc + r.total, 0);
+    type OrderTotalRow = { total: number | string | null };
+    const sum = (rows: OrderTotalRow[]) =>
+      rows.reduce(
+        (acc: number, r: OrderTotalRow) =>
+          acc + getOrderPersistedTotal(r as unknown as Record<string, unknown>),
+        0
+      );
     const todaySales  = sum(today.data  ?? []);
     const monthSales  = sum(month.data  ?? []);
     const pending     = pendingRes.count   ?? 0;
@@ -129,7 +135,7 @@ async function getDashboardData() {
     for (const order of chart.data ?? []) {
       const key = new Date(order.created_at).toISOString().slice(0, 10);
       const slot = chartData.find((c) => c.dateKey === key);
-      if (slot) slot.total += order.total;
+      if (slot) slot.total += getOrderPersistedTotal(order as Record<string, unknown>);
     }
 
     return {
@@ -338,7 +344,7 @@ export default async function DashboardPage() {
                       <p className="text-xs text-zinc-400">{order.customer_email}</p>
                     </td>
                     <td className="px-5 py-3 font-semibold text-zinc-900">
-                      {formatPrice(order.total)}
+                      {formatPrice(getOrderPersistedTotal(order as Record<string, unknown>))}
                     </td>
                     <td className="px-5 py-3">
                       <StatusBadge status={order.status} />

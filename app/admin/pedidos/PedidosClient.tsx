@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, ShoppingBag, ExternalLink } from "lucide-react";
 import { formatOrderStatus, normalizeOrderStatusKey } from "@/lib/orders/formatOrderStatus";
+import { getOrderPersistedTotal } from "@/lib/orders/orderDisplayTotals";
 import { formatPrice } from "@/lib/utils/format";
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -230,7 +231,7 @@ export function PedidosClient({ orders, initialFilter }: { orders: any[]; initia
                     </td>
 
                     <td className="px-5 py-3 font-semibold text-zinc-900">
-                      {formatPrice(order.total ?? 0)}
+                      {formatPrice(getOrderPersistedTotal(order))}
                     </td>
 
                     <td className="px-5 py-3">

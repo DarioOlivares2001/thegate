@@ -23,10 +23,19 @@ import { pixelEvents } from "@/lib/pixel/events";
 import { formatPrice } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { toast } from "@/components/ui/Toast";
 import { StickyAddToCart } from "@/components/store/StickyAddToCart";
 import { TrustBadges } from "@/components/store/TrustBadges";
 import { ProductTieredDiscount } from "@/components/store/ProductTieredDiscount";
 import { normalizeProductCategory } from "@/lib/product/categories";
+import {
+  getApplicableProductDiscount,
+  getDiscountedUnitPrice,
+  getNextDiscountStep,
+  normalizeDiscountSteps,
+  formatDiscountTierMinQtyLabel,
+  isLastDiscountTier,
+} from "@/lib/discounts";
 import type { Database, Product, Review } from "@/lib/supabase/types";
 
 interface Props {
@@ -330,6 +339,56 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
     : 0;
   const savedAmount = hasOffer ? displayCompareAt! - displayPrice : 0;
 
+  const volumeDiscountInput = useMemo(
+    () => ({
+      price: displayPrice,
+      discount_enabled: product.discount_enabled,
+      discount_max_percent: product.discount_max_percent,
+      discount_steps: product.discount_steps,
+      discount_label: product.discount_label,
+    }),
+    [
+      displayPrice,
+      product.discount_enabled,
+      product.discount_max_percent,
+      product.discount_steps,
+      product.discount_label,
+    ]
+  );
+
+  const effectiveUnitPrice = useMemo(
+    () => getDiscountedUnitPrice(volumeDiscountInput, qty, displayPrice),
+    [volumeDiscountInput, qty, displayPrice]
+  );
+
+  const appliedVolumePct = useMemo(
+    () => getApplicableProductDiscount(volumeDiscountInput, qty),
+    [volumeDiscountInput, qty]
+  );
+
+  const nextVolumeStep = useMemo(
+    () => getNextDiscountStep(volumeDiscountInput, qty),
+    [volumeDiscountInput, qty]
+  );
+
+  const lineVolumeSavings = Math.max(
+    0,
+    Math.round((displayPrice - effectiveUnitPrice) * qty)
+  );
+  const maxVolCap = Math.min(100, Math.max(0, Number(product.discount_max_percent) || 0));
+  const normalizedVolumeSteps = useMemo(
+    () => normalizeDiscountSteps(product.discount_steps),
+    [product.discount_steps]
+  );
+  const hasVolumeSteps = normalizedVolumeSteps.length > 0;
+  const showVolumePromo = product.discount_enabled === true && hasVolumeSteps;
+  const showQty1VolumeHint = qty === 1 && showVolumePromo;
+  const showVolumeEconomics = qty >= 2 && showVolumePromo;
+
+  const nextVolumeStepIsLast = Boolean(
+    nextVolumeStep && isLastDiscountTier(normalizedVolumeSteps, nextVolumeStep.minQty)
+  );
+
   const variantGroups = product.variants
     ? (product.variants as Record<string, string[]>)
     : null;
@@ -421,11 +480,17 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
 
   async function handleAdd() {
     if (adding || displayStock === 0) return;
+    if (hasRealVariants && !selectedRealVariant?.id) {
+      toast.error("Selecciona una variante válida antes de agregar al carrito.");
+      return;
+    }
     setAdding(true);
     try {
-      add({
+      const ok = add({
         product_id: product.id,
-        variant_id: selectedRealVariant?.id,
+        has_variants: hasRealVariants,
+        product_slug: product.slug,
+        variant_id: hasRealVariants ? selectedRealVariant!.id : undefined,
         name: product.name,
         price: displayPrice,
         quantity: qty,
@@ -434,7 +499,16 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
         option_values:
           (selectedRealVariant?.option_values as Record<string, string> | undefined) ??
           undefined,
+        unitListPrice: displayPrice,
+        discount_enabled: product.discount_enabled,
+        discount_max_percent: product.discount_max_percent,
+        discount_steps: product.discount_steps,
+        discount_label: product.discount_label,
       });
+      if (!ok) {
+        toast.error("No se pudo agregar: falta elegir variante. Vuelve a seleccionarla en la ficha.");
+        return;
+      }
       pixelEvents.addToCart(product, qty);
       openDrawer();
     } finally {
@@ -452,6 +526,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
   }) {
     add({
       product_id: s.id,
+      has_variants: false,
       name: s.name,
       price: s.offerPrice,
       quantity: 1,
@@ -573,20 +648,68 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
           )}
 
           {/* Prices */}
-          <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-bold text-[var(--color-text)]">
-              {formatPrice(displayPrice)}
-            </span>
-            {hasOffer && (
-              <div className="flex flex-col gap-0.5">
-                <span className="text-lg text-[var(--color-text-muted)] line-through">
-                  {formatPrice(displayCompareAt!)}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-baseline gap-3">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-3xl font-bold tabular-nums text-[var(--color-text)]">
+                  {formatPrice(showQty1VolumeHint ? displayPrice : effectiveUnitPrice)}
                 </span>
-                <span className="text-xs font-semibold text-emerald-700">
-                  Ahorras {formatPrice(savedAmount)} ({discount}%)
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  {qty === 1 ? "1 unidad" : `${qty} unidades`} ·{" "}
+                  {formatPrice(showQty1VolumeHint ? displayPrice : effectiveUnitPrice)} c/u
                 </span>
               </div>
-            )}
+              {!showQty1VolumeHint && effectiveUnitPrice < displayPrice && (
+                <span className="text-lg text-[var(--color-text-muted)] line-through tabular-nums">
+                  {formatPrice(displayPrice)}
+                </span>
+              )}
+              {hasOffer && (
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-lg text-[var(--color-text-muted)] line-through tabular-nums">
+                    {formatPrice(displayCompareAt!)}
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-700">
+                    Ahorras {formatPrice(savedAmount)} vs referencia ({discount}%)
+                  </span>
+                </div>
+              )}
+            </div>
+            {showQty1VolumeHint ? (
+              <p className="text-sm font-medium text-amber-900/95">
+                🔥 Agrega más unidades y desbloquea descuentos
+              </p>
+            ) : null}
+            {showVolumeEconomics && appliedVolumePct > 0 ? (
+              <p className="text-sm font-semibold text-emerald-800">
+                Descuento por cantidad actual: {appliedVolumePct}%
+              </p>
+            ) : null}
+            {showVolumeEconomics && lineVolumeSavings > 0 ? (
+              <p className="text-sm font-semibold text-emerald-700">
+                Ahorro extra por cantidad: {formatPrice(lineVolumeSavings)}
+              </p>
+            ) : null}
+            {showVolumeEconomics && nextVolumeStep ? (
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Agrega {Math.max(0, nextVolumeStep.minQty - qty)} más y desbloquea{" "}
+                {Math.min(nextVolumeStep.percent, maxVolCap)}% OFF
+                {nextVolumeStepIsLast
+                  ? ` (${formatDiscountTierMinQtyLabel(nextVolumeStep.minQty, { isLastTier: true })})`
+                  : ""}
+              </p>
+            ) : null}
+            {showVolumeEconomics && !nextVolumeStep && appliedVolumePct > 0 ? (
+              <p className="text-sm font-medium text-emerald-800/90">
+                Descuento por cantidad máximo para esta cantidad
+                {normalizedVolumeSteps.length > 0
+                  ? ` (${formatDiscountTierMinQtyLabel(
+                      normalizedVolumeSteps[normalizedVolumeSteps.length - 1].minQty,
+                      { isLastTier: true }
+                    )})`
+                  : ""}
+              </p>
+            ) : null}
           </div>
           <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm text-[var(--color-text)]">
             <p>🔥 Alta demanda hoy</p>
@@ -663,9 +786,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             ))
           ) : null}
 
-          <ProductTieredDiscount unitPrice={displayPrice} quantity={qty} />
-
-          {/* Cantidad (afecta resaltado de niveles de volumen) */}
+          {/* Cantidad (afecta precio por volumen y tabla de escalones) */}
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium text-[var(--color-text)]">Unidades</span>
             <div className="flex items-center gap-0.5 rounded-[var(--radius-sm)] border border-[var(--color-border)] p-0.5">
@@ -692,6 +813,15 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
               </button>
             </div>
           </div>
+
+          <ProductTieredDiscount
+            unitPrice={displayPrice}
+            quantity={qty}
+            discount_enabled={product.discount_enabled}
+            discount_max_percent={product.discount_max_percent}
+            discount_steps={product.discount_steps}
+            discount_label={product.discount_label}
+          />
 
           {/* Main CTA */}
           <Button
@@ -1289,7 +1419,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
       {/* ── Sticky CTA — mobile only ── */}
       <StickyAddToCart
         product={product}
-        price={displayPrice}
+        baseUnitPrice={displayPrice}
         stock={displayStock}
         image={displayImage}
         targetRef={mainCTARef}

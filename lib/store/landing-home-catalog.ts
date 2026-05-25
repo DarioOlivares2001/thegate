@@ -25,6 +25,10 @@ function makeProduct(p: Partial<Product> & Pick<Product, "id" | "slug" | "name" 
     created_at: p.created_at ?? isoNow(),
     updated_at: p.updated_at ?? isoNow(),
     ...p,
+    discount_enabled: p.discount_enabled ?? false,
+    discount_max_percent: p.discount_max_percent ?? 0,
+    discount_steps: (Array.isArray(p.discount_steps) ? p.discount_steps : []) as Product["discount_steps"],
+    discount_label: p.discount_label ?? null,
   };
 }
 

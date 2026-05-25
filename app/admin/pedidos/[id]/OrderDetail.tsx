@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, MapPin, Package, ChevronDown, Workflow, MessageCircle } from "lucide-react";
 import { formatOrderStatus, normalizeOrderStatusKey } from "@/lib/orders/formatOrderStatus";
+import {
+  getOrderPersistedTotals,
+  getPersistedLineAmount,
+} from "@/lib/orders/orderDisplayTotals";
 import { formatPrice } from "@/lib/utils/format";
 import { toast } from "@/components/ui/Toast";
 import { OrderTimeline } from "@/components/admin/OrderTimeline";
@@ -133,6 +137,7 @@ export function OrderDetail({ order }: { order: any }) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const items: any[] = Array.isArray(order.items) ? order.items : [];
+  const persisted = getOrderPersistedTotals(order as Record<string, unknown>);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -367,17 +372,17 @@ export function OrderDetail({ order }: { order: any }) {
             <div className="mt-auto space-y-1 border-t border-zinc-100 pt-2 text-[11px] text-zinc-600">
               <div className="flex justify-between gap-2">
                 <span>Subtotal</span>
-                <span className="tabular-nums">{formatPrice(order.subtotal ?? 0)}</span>
+                <span className="tabular-nums">{formatPrice(persisted.subtotal)}</span>
               </div>
               <div className="flex justify-between gap-2">
                 <span>Envío</span>
                 <span className="tabular-nums">
-                  {order.shipping_cost === 0 ? "Gratis" : formatPrice(order.shipping_cost ?? 0)}
+                  {persisted.shipping_cost === 0 ? "Gratis" : formatPrice(persisted.shipping_cost)}
                 </span>
               </div>
               <div className="flex justify-between gap-2 font-bold text-zinc-900">
                 <span>Total</span>
-                <span className="tabular-nums">{formatPrice(order.total ?? 0)}</span>
+                <span className="tabular-nums">{formatPrice(persisted.total)}</span>
               </div>
             </div>
           </div>
@@ -422,11 +427,12 @@ export function OrderDetail({ order }: { order: any }) {
                       <p className="truncate text-[10px] text-zinc-400">{item.variant}</p>
                     ) : null}
                     <p className="mt-0.5 text-[11px] text-zinc-500">
-                      {formatPrice(item.price ?? 0)} × {item.quantity ?? 1}
+                      {formatPrice(Math.round(Number(item.unit_price ?? item.price) || 0))} ×{" "}
+                      {item.quantity ?? 1}
                     </p>
                   </div>
                   <p className="shrink-0 text-sm font-semibold tabular-nums text-zinc-900">
-                    {formatPrice((item.price ?? 0) * (item.quantity ?? 1))}
+                    {formatPrice(getPersistedLineAmount(item as Record<string, unknown>))}
                   </p>
                 </div>
               ))}

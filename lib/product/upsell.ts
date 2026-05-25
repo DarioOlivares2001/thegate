@@ -1,8 +1,6 @@
 import type { Product } from "@/lib/supabase/types";
+import { computeSafeUpsellDiscountFromProduct } from "@/lib/checkout/recommendations";
 import { normalizeOptimizedImageUrl } from "@/lib/images/normalizeOptimizedImageUrl";
-
-const DISCOUNT_CANDIDATES = [20, 18, 15, 12, 10, 8, 5] as const;
-const MIN_MARGIN_PCT = 0.25;
 
 const CONTEXTS = [
   {
@@ -28,19 +26,6 @@ export type ProductUpsellSuggestion = {
   discountPercent: number;
   savings: number;
 };
-
-function safeDiscount(price: number, costPrice: number | null) {
-  if (!costPrice || costPrice <= 0 || price <= 0) return null;
-  for (const discountPercent of DISCOUNT_CANDIDATES) {
-    const offerPrice = Math.round(price * (1 - discountPercent / 100));
-    if (offerPrice <= costPrice) continue;
-    const marginPct = (offerPrice - costPrice) / offerPrice;
-    if (marginPct >= MIN_MARGIN_PCT) {
-      return { offerPrice, discountPercent, savings: price - offerPrice };
-    }
-  }
-  return null;
-}
 
 function buildBlob(p: Product) {
   return [p.name, p.category ?? "", ...(p.tags ?? [])].join(" ").toLowerCase();
@@ -71,22 +56,24 @@ export function pickProductUpsellSuggestions(
       return a.p.price - b.p.price;
     });
 
-  const picked = scored
-    .slice(0, Math.max(max * 3, 6))
-    .map(({ p }) => {
-      const safe = safeDiscount(p.price, p.cost_price);
-      return {
-        id: p.id,
-        name: p.name,
-        image: normalizeOptimizedImageUrl(p.images?.[0] ?? ""),
-        price: p.price,
-        offerPrice: safe?.offerPrice ?? p.price,
-        discountPercent: safe?.discountPercent ?? 0,
-        savings: safe?.savings ?? 0,
-      };
-    })
-    .slice(0, max);
+  const out: ProductUpsellSuggestion[] = [];
+  for (const { p } of scored) {
+    if (out.length >= max) break;
+    const safe = computeSafeUpsellDiscountFromProduct(p.price, p.cost_price, {
+      discount_enabled: p.discount_enabled,
+      discount_max_percent: p.discount_max_percent,
+    });
+    if (!safe || safe.discountPercent <= 0) continue;
+    out.push({
+      id: p.id,
+      name: p.name,
+      image: normalizeOptimizedImageUrl(p.images?.[0] ?? ""),
+      price: p.price,
+      offerPrice: safe.offerPrice,
+      discountPercent: safe.discountPercent,
+      savings: safe.savings,
+    });
+  }
 
-  return picked;
+  return out;
 }
-

@@ -5,6 +5,10 @@ import {
   pickCheckoutRecommendations,
   type CheckoutRecRow,
 } from "@/lib/checkout/recommendations";
+import {
+  computeUpsellDiscountPercentFromPrices,
+  computeUpsellSavingsDisplay,
+} from "@/lib/cart/upsellOfferDisplay";
 import { normalizeOptimizedImageUrl } from "@/lib/images/normalizeOptimizedImageUrl";
 
 export async function POST(request: Request) {
@@ -23,7 +27,9 @@ export async function POST(request: Request) {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("products")
-      .select("id,slug,name,price,cost_price,stock,images,active,has_variants,category,tags")
+      .select(
+        "id,slug,name,price,compare_at_price,cost_price,stock,images,active,has_variants,category,tags,discount_enabled,discount_max_percent,discount_steps"
+      )
       .eq("active", true)
       .gt("stock", 0)
       .eq("has_variants", false)
@@ -44,27 +50,36 @@ export async function POST(request: Request) {
     const byId = new Map(rows.map((r) => [r.id, r]));
     const offers = products.map((p) => {
       const base = byId.get(p.id);
-      const originalPrice = base?.price ?? p.price;
+      const list = base?.price ?? p.price;
+      const compare = base?.compare_at_price ?? p.compare_at_price ?? null;
       const offerPrice =
-        typeof p.offerPrice === "number" && p.offerPrice > 0 ? p.offerPrice : originalPrice;
-      const computedSavings = Math.max(0, originalPrice - offerPrice);
-      const savings =
-        typeof p.savings === "number" && p.savings > 0 ? p.savings : computedSavings;
+        typeof p.offerPrice === "number" && p.offerPrice > 0 ? p.offerPrice : list;
       const discountPercent =
         typeof p.discountPercent === "number" && p.discountPercent > 0
           ? p.discountPercent
-          : originalPrice > 0 && savings > 0
-            ? Math.round((savings / originalPrice) * 100)
-            : 0;
+          : computeUpsellDiscountPercentFromPrices({
+              listPrice: list,
+              compareAtPrice: compare,
+              offerPrice,
+              discountPercentHint: p.discountPercent,
+              displayPercentCap:
+                base?.discount_enabled === true
+                  ? Math.min(100, Math.max(0, Number(base.discount_max_percent) || 0))
+                  : null,
+            });
+      const savings = computeUpsellSavingsDisplay(list, compare, offerPrice);
       return {
         id: p.id,
         name: p.name,
         image: normalizeOptimizedImageUrl(p.images?.[0] ?? ""),
-        price: originalPrice,
+        price: list,
+        compare_at_price: compare,
         offerPrice,
         discountPercent,
         savings,
         stock: base?.stock ?? 0,
+        discount_enabled: base?.discount_enabled === true,
+        discount_max_percent: base?.discount_max_percent ?? null,
       };
     });
 

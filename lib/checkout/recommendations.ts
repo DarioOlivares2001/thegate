@@ -31,6 +31,7 @@ export type CheckoutRecRow = {
   slug: string;
   name: string;
   price: number;
+  compare_at_price?: number | null;
   cost_price?: number | null;
   images: string[];
   stock: number;
@@ -38,15 +39,20 @@ export type CheckoutRecRow = {
   tags: string[] | null;
   /** Si es true, se excluye del checkout rápido (requiere elegir variante). */
   has_variants?: boolean | null;
+  discount_enabled?: boolean | null;
+  discount_max_percent?: number | null;
+  discount_steps?: unknown;
 };
 
 export type CheckoutRecProduct = Pick<
   CheckoutRecRow,
-  "id" | "slug" | "name" | "price" | "images"
+  "id" | "slug" | "name" | "price" | "images" | "compare_at_price"
 > & {
   offerPrice?: number;
   discountPercent?: number;
   savings?: number;
+  discount_enabled?: boolean;
+  discount_max_percent?: number | null;
 };
 
 export function getRecommendationContext(cartProductNames: string[]): {
@@ -78,17 +84,42 @@ function scoreGenericComplementary(product: CheckoutRecRow): number {
   return genericHints.reduce((acc, k) => acc + (blob.includes(k) ? 1 : 0), 0);
 }
 
-function safeDiscount(price: number, costPrice?: number | null) {
+function buildEffectivePercentsDescending(maxPercent: number): number[] {
+  const cap = Math.min(100, Math.max(0, Math.round(Number(maxPercent) || 0)));
+  if (cap <= 0) return [];
+  const raw = [...DISCOUNT_CANDIDATES].map((c) => Math.min(c, cap)).filter((p) => p > 0);
+  return Array.from(new Set(raw)).sort((a, b) => b - a);
+}
+
+function safeDiscount(
+  price: number,
+  costPrice: number | null | undefined,
+  product: Pick<CheckoutRecRow, "discount_enabled" | "discount_max_percent">
+): { offerPrice: number; discountPercent: number; savings: number } | null {
+  if (product.discount_enabled !== true) return null;
+  const maxP = Math.min(100, Math.max(0, Number(product.discount_max_percent) || 0));
+  const percents = buildEffectivePercentsDescending(maxP);
+  if (percents.length === 0) return null;
   if (!costPrice || costPrice <= 0 || price <= 0) return null;
-  for (const discountPercent of DISCOUNT_CANDIDATES) {
-    const offerPrice = Math.round(price * (1 - discountPercent / 100));
+
+  for (const appliedPercent of percents) {
+    const offerPrice = Math.round(price * (1 - appliedPercent / 100));
     if (offerPrice <= costPrice) continue;
     const marginPct = (offerPrice - costPrice) / offerPrice;
     if (marginPct >= MIN_MARGIN_PCT) {
-      return { offerPrice, discountPercent, savings: price - offerPrice };
+      return { offerPrice, discountPercent: appliedPercent, savings: price - offerPrice };
     }
   }
   return null;
+}
+
+/** Upsell con tope `discount_max_percent` y sin oferta si `discount_enabled` es false. */
+export function computeSafeUpsellDiscountFromProduct(
+  price: number,
+  costPrice: number | null | undefined,
+  product: Pick<CheckoutRecRow, "discount_enabled" | "discount_max_percent">
+): { offerPrice: number; discountPercent: number; savings: number } | null {
+  return safeDiscount(price, costPrice, product);
 }
 
 /**
@@ -123,19 +154,23 @@ export function pickCheckoutRecommendations(
   for (const { p } of scored) {
     if (picked.length >= max) break;
     if (seen.has(p.id)) continue;
+    const safe = safeDiscount(p.price, p.cost_price, p);
+    if (!safe) continue;
     seen.add(p.id);
-    const safe = safeDiscount(p.price, p.cost_price);
     picked.push({
       id: p.id,
       slug: p.slug,
       name: p.name,
-      price: safe?.offerPrice ?? p.price,
+      price: p.price,
+      compare_at_price: p.compare_at_price ?? null,
       images: (Array.isArray(p.images) ? p.images : []).map((img) =>
         normalizeOptimizedImageUrl(String(img ?? ""))
       ),
-      offerPrice: safe?.offerPrice,
-      discountPercent: safe?.discountPercent,
-      savings: safe?.savings,
+      offerPrice: safe.offerPrice,
+      discountPercent: safe.discountPercent,
+      savings: safe.savings,
+      discount_enabled: p.discount_enabled === true,
+      discount_max_percent: p.discount_max_percent ?? null,
     });
   }
 
@@ -145,19 +180,23 @@ export function pickCheckoutRecommendations(
       .sort((a, b) => b.stock - a.stock);
     for (const p of rest) {
       if (picked.length >= max) break;
+      const safe = safeDiscount(p.price, p.cost_price, p);
+      if (!safe) continue;
       seen.add(p.id);
-      const safe = safeDiscount(p.price, p.cost_price);
       picked.push({
         id: p.id,
         slug: p.slug,
         name: p.name,
-        price: safe?.offerPrice ?? p.price,
+        price: p.price,
+        compare_at_price: p.compare_at_price ?? null,
         images: (Array.isArray(p.images) ? p.images : []).map((img) =>
           normalizeOptimizedImageUrl(String(img ?? ""))
         ),
-        offerPrice: safe?.offerPrice,
-        discountPercent: safe?.discountPercent,
-        savings: safe?.savings,
+        offerPrice: safe.offerPrice,
+        discountPercent: safe.discountPercent,
+        savings: safe.savings,
+        discount_enabled: p.discount_enabled === true,
+        discount_max_percent: p.discount_max_percent ?? null,
       });
     }
   }

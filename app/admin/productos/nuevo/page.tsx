@@ -13,6 +13,17 @@ import { toast } from "@/components/ui/Toast";
 import { createProductAction } from "./actions";
 import { compressImageIfNeeded } from "@/lib/images/compressImage";
 import { ECOMMERCE_CATEGORIES } from "@/lib/product/categories";
+import {
+  ADMIN_DEFAULT_LABEL,
+  ADMIN_DEFAULT_MAX_PERCENT,
+  validateVolumeDiscountForSave,
+  volumeDiscountFormRowsToSteps,
+} from "@/lib/admin/productVolumeDiscounts";
+import {
+  ProductVolumeDiscountSection,
+  defaultVolumeDiscountStepRows,
+  type VolumeDiscountStepRow,
+} from "@/components/admin/ProductVolumeDiscountSection";
 
 // ─── Rich text editor (client-only) ──────────────────────────────────────────
 
@@ -108,6 +119,13 @@ export default function NuevoProductoPage() {
   const [images, setImages] = useState<ImageItem[]>([]);
   const [dropOver, setDropOver] = useState(false);
   const [dragSrcIdx, setDragSrcIdx] = useState<number | null>(null);
+
+  const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [discountMaxPercent, setDiscountMaxPercent] = useState(
+    String(ADMIN_DEFAULT_MAX_PERCENT)
+  );
+  const [discountLabel, setDiscountLabel] = useState(ADMIN_DEFAULT_LABEL);
+  const [discountSteps, setDiscountSteps] = useState<VolumeDiscountStepRow[]>([]);
 
   // Revoke blob URLs on unmount
   useEffect(() => {
@@ -224,6 +242,15 @@ export default function NuevoProductoPage() {
     );
   }
 
+  function handleVolumeDiscountEnabled(v: boolean) {
+    if (v && discountSteps.length === 0) {
+      setDiscountMaxPercent(String(ADMIN_DEFAULT_MAX_PERCENT));
+      setDiscountLabel(ADMIN_DEFAULT_LABEL);
+      setDiscountSteps(defaultVolumeDiscountStepRows());
+    }
+    setDiscountEnabled(v);
+  }
+
   // ── Submit ──────────────────────────────────────────────────────────────────
 
   async function handleSubmit(e: React.FormEvent) {
@@ -237,6 +264,17 @@ export default function NuevoProductoPage() {
       !variantRows.some((r) => r.active && Number(r.price) > 0)
     ) {
       return toast.error("Ingresa al menos una variante activa con precio válido");
+    }
+
+    const stepsNum = volumeDiscountFormRowsToSteps(discountSteps);
+    const volumeCheck = validateVolumeDiscountForSave(
+      discountEnabled,
+      Number(discountMaxPercent),
+      discountLabel.trim() || null,
+      stepsNum
+    );
+    if (!volumeCheck.ok) {
+      return toast.error(volumeCheck.error);
     }
 
     setLoading(true);
@@ -281,6 +319,13 @@ export default function NuevoProductoPage() {
       );
       fd.append("image_count", String(images.length));
       images.forEach((img, i) => fd.append(`image_${i}`, img.file));
+
+      fd.append("discount_enabled", volumeCheck.data.discount_enabled ? "true" : "false");
+      if (volumeCheck.data.discount_enabled) {
+        fd.append("discount_max_percent", String(volumeCheck.data.discount_max_percent));
+        fd.append("discount_label", volumeCheck.data.discount_label ?? "");
+        fd.append("discount_steps_json", JSON.stringify(volumeCheck.data.discount_steps));
+      }
 
       const result = await createProductAction(fd);
       if (result.error) {
@@ -567,6 +612,17 @@ export default function NuevoProductoPage() {
                 ))}
               </select>
             </Card>
+
+            <ProductVolumeDiscountSection
+              enabled={discountEnabled}
+              onEnabledChange={handleVolumeDiscountEnabled}
+              maxPercent={discountMaxPercent}
+              onMaxPercentChange={setDiscountMaxPercent}
+              label={discountLabel}
+              onLabelChange={setDiscountLabel}
+              steps={discountSteps}
+              onStepsChange={setDiscountSteps}
+            />
 
             {/* Product type */}
             <Card title="Tipo de producto">

@@ -136,7 +136,7 @@ export default async function HomePage() {
                     </div>
                     <Link href={`/productos/${product.slug}`} className="mt-4 block">
                       <Button size="md" fullWidth variant="secondary">
-                        Ver producto
+                        {product.has_variants ? "Ver opciones" : "Ver producto"}
                       </Button>
                     </Link>
                   </div>

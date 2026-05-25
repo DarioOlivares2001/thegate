@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import type { Database, Json } from "@/lib/supabase/types";
 import { upsertClienteFromOrder } from "@/lib/clientes/upsertClienteFromOrder";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderNotification } from "@/lib/email/sendOrderNotification";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import {
+  recalculateCheckoutOrder,
+  type RecalculatedOrderLine,
+} from "@/lib/checkout/recalculateCheckoutOrder";
 
-const FLOW_API_URL   = process.env.FLOW_API_URL            ?? "https://sandbox.flow.cl/api";
-const FLOW_API_KEY   = process.env.FLOW_API_KEY            ?? "";
-const FLOW_SECRET_KEY = process.env.FLOW_SECRET_KEY        ?? "";
-const FLOW_MOCK      =
+const FLOW_API_URL = process.env.FLOW_API_URL ?? "https://sandbox.flow.cl/api";
+const FLOW_API_KEY = process.env.FLOW_API_KEY ?? "";
+const FLOW_SECRET_KEY = process.env.FLOW_SECRET_KEY ?? "";
+const FLOW_MOCK =
   process.env.FLOW_MOCK === "true" || FLOW_API_KEY.toLowerCase().includes("sandbox");
 
 // ─── HMAC-SHA256 signing ──────────────────────────────────────────────────────
@@ -21,75 +26,222 @@ function sign(params: Record<string, string>, secret: string): string {
   return crypto.createHmac("sha256", secret).update(message).digest("hex");
 }
 
-// ─── Shared order shape ───────────────────────────────────────────────────────
+type CheckoutCustomer = {
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  address?: string;
+  city?: string;
+  region?: string;
+  referencia?: string;
+};
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildOrderPayload(body: any, status: "pending" | "paid") {
-  const { customer, items, subtotal, shippingCost, total } = body;
+function buildOrderInsertPayload(
+  customer: CheckoutCustomer,
+  items: RecalculatedOrderLine[],
+  subtotal: number,
+  shippingCost: number,
+  total: number,
+  status: "pending" | "paid"
+): Database["public"]["Tables"]["orders"]["Insert"] {
+  const referencia =
+    typeof customer.referencia === "string" ? customer.referencia.trim() : "";
   return {
     status,
-    customer_name:    customer.name,
-    customer_email:   customer.email,
-    customer_phone:   customer.phone ?? null,
+    customer_name: String(customer.name ?? "").trim() || "Cliente",
+    customer_email: String(customer.email ?? "").trim(),
+    customer_phone: customer.phone ?? null,
     shipping_address: {
-      direccion: customer.address,
-      ciudad:    customer.city,
-      region:    customer.region,
-    },
-    items:         items        ?? [],
-    subtotal:      subtotal     ?? 0,
-    shipping_cost: shippingCost ?? 0,
-    total,
+      direccion: customer.address ?? "",
+      ciudad: customer.city ?? "",
+      region: customer.region ?? "",
+      ...(referencia ? { referencia } : {}),
+    } as Json,
+    items: items as unknown as Json,
+    subtotal: Math.round(subtotal),
+    shipping_cost: Math.round(shippingCost),
+    total: Math.round(total),
+    flow_token: null,
+    flow_order: null,
+    notes: null,
   };
+}
+
+function logClientVsServerTotals(params: {
+  clientSubtotal?: unknown;
+  clientShipping?: unknown;
+  clientTotal?: unknown;
+  serverSubtotal: number;
+  serverShipping: number;
+  serverTotal: number;
+}) {
+  const cs = Number(params.clientSubtotal);
+  const cg = Number(params.clientShipping);
+  const ct = Number(params.clientTotal);
+  const { serverSubtotal, serverShipping, serverTotal } = params;
+  if (Number.isFinite(cs) && cs !== serverSubtotal) {
+    console.warn("[checkout-price] subtotal mismatch", {
+      clientSubtotal: cs,
+      serverSubtotal,
+      delta: serverSubtotal - cs,
+    });
+  }
+  if (Number.isFinite(cg) && cg !== serverShipping) {
+    console.warn("[checkout-price] shipping mismatch", {
+      clientShipping: cg,
+      serverShipping,
+      delta: serverShipping - cg,
+    });
+  }
+  if (Number.isFinite(ct) && ct !== serverTotal) {
+    console.warn("[checkout-price] total mismatch", {
+      clientTotal: ct,
+      serverTotal,
+      delta: serverTotal - ct,
+    });
+  }
+}
+
+/** Log temporal tras insert: totales persistidos en `orders` e importes por línea (mismo payload que el insert). */
+function logPersistedOrderAfterInsert(params: {
+  order_number: number;
+  subtotal: number;
+  shipping_cost: number;
+  total: number;
+  items: RecalculatedOrderLine[];
+}) {
+  const lineTotals = params.items.map((it) => ({
+    name: it.name,
+    price: it.price,
+    quantity: it.quantity,
+    lineTotal: it.line_total,
+    discount_source: it.discount_source,
+  }));
+  console.log("[flow-create-order-persisted]", {
+    order_number: params.order_number,
+    subtotal: params.subtotal,
+    shipping_cost: params.shipping_cost,
+    total: params.total,
+    lineTotals,
+  });
 }
 
 // ─── Route ───────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { customer, total } = body;
+    const body = (await request.json()) as {
+      customer?: CheckoutCustomer;
+      items?: unknown;
+      subtotal?: unknown;
+      shippingCost?: unknown;
+      total?: unknown;
+    };
+    const { customer } = body;
 
-    if (!customer?.email || !total) {
+    if (!customer?.email || typeof customer.email !== "string") {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
     }
 
+    const admin = createAdminClient();
+    const priced = await recalculateCheckoutOrder(admin, body.items);
+    if (!priced.ok) {
+      return NextResponse.json({ error: priced.error }, { status: priced.status });
+    }
+
+    const { items, subtotal, shippingCost, total } = priced;
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("[flow-create totals]", {
+        clientSubtotal: body.subtotal,
+        clientShipping: body.shippingCost,
+        clientTotal: body.total,
+        serverSubtotal: subtotal,
+        serverShipping: shippingCost,
+        serverTotal: total,
+        lines: items.map((l) => ({
+          product_id: l.product_id,
+          variant_id: l.variant_id,
+          name: l.name,
+          quantity: l.quantity,
+          unitPrice: l.price,
+          lineTotal: l.line_total,
+        })),
+      });
+    }
+
+    logClientVsServerTotals({
+      clientSubtotal: body.subtotal,
+      clientShipping: body.shippingCost,
+      clientTotal: body.total,
+      serverSubtotal: subtotal,
+      serverShipping: shippingCost,
+      serverTotal: total,
+    });
+
+    const orderPayload = buildOrderInsertPayload(
+      customer,
+      items,
+      subtotal,
+      shippingCost,
+      total,
+      "pending"
+    );
+
     // ── Mock mode ─────────────────────────────────────────────────────────────
-    // Uses the admin client (service_role) so it bypasses RLS and can set
-    // status = 'paid' directly — simulating a completed Flow payment.
     if (FLOW_MOCK) {
-      const admin = createAdminClient();
+      const mockPayload = buildOrderInsertPayload(
+        customer,
+        items,
+        subtotal,
+        shippingCost,
+        total,
+        "paid"
+      );
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (admin as any)
         .from("orders")
-        .insert(buildOrderPayload(body, "paid"))
+        .insert(mockPayload)
         .select("order_number")
         .single();
 
       if (error) {
         console.error("[Flow mock] Error creando orden:", error.message);
-        return NextResponse.json(
-          { error: "Error al crear la orden de prueba" },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: "Error al crear la orden de prueba" }, { status: 500 });
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orderNumber: number = (data as any).order_number;
+      const orderNumber = (data as any).order_number as number;
       try {
-        await upsertClienteFromOrder(admin, {
-          name: customer.name,
-          email: customer.email,
-          phone: customer.phone ?? null,
-          address: customer.address,
-          city: customer.city,
-          region: customer.region,
-        }, Number(total));
+        await upsertClienteFromOrder(
+          admin,
+          {
+            name: customer.name ?? "",
+            email: customer.email,
+            phone: customer.phone ?? null,
+            address: customer.address,
+            city: customer.city,
+            region: customer.region,
+          },
+          total
+        );
       } catch (e) {
-        console.error("[cliente-upsert] error", { phase: "mock_route", email: customer.email, error: String(e) });
+        console.error("[cliente-upsert] error", {
+          phase: "mock_route",
+          email: customer.email,
+          error: String(e),
+        });
       }
       const mockToken = `MOCK-${orderNumber}`;
       console.info(`[Flow mock] Orden #${orderNumber} creada con status 'paid'`);
+      logPersistedOrderAfterInsert({
+        order_number: orderNumber,
+        subtotal: mockPayload.subtotal,
+        shipping_cost: mockPayload.shipping_cost,
+        total: mockPayload.total,
+        items,
+      });
       console.log("[order-created]", {
         mode: "mock",
         orderNumber,
@@ -110,10 +262,10 @@ export async function POST(request: NextRequest) {
             ciudad: customer.city,
             region: customer.region,
           },
-          items: body.items ?? [],
-          subtotal: Number(body.subtotal ?? 0),
-          shippingCost: Number(body.shippingCost ?? 0),
-          total: Number(total),
+          items,
+          subtotal,
+          shippingCost,
+          total,
         });
       } catch (emailError) {
         console.error("[email-error] Falló notificación de pedido:", emailError);
@@ -122,24 +274,22 @@ export async function POST(request: NextRequest) {
       const siteUrl = getPublicSiteUrl();
       return NextResponse.json({
         redirectUrl: `${siteUrl}/checkout/confirmacion?order=${orderNumber}&token=${mockToken}&mock=1`,
-        token:        mockToken,
-        flowOrder:    0,
+        token: mockToken,
+        flowOrder: 0,
         commerceOrder: `TG-${orderNumber}`,
       });
     }
 
     // ── Live mode — insert pending order, then call Flow ──────────────────────
 
-    // Persist order first (mandatory). If this fails, do not continue to Flow.
-    const admin = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: orderData, error: orderError } = await (admin as any)
       .from("orders")
-      .insert(buildOrderPayload(body, "pending"))
+      .insert(orderPayload)
       .select("order_number")
       .single();
 
-    if (orderError || !orderData?.order_number) {
+    if (orderError || orderData == null) {
       console.error("[Flow create] Error creando orden pending:", orderError?.message);
       return NextResponse.json(
         { error: "No se pudo crear la orden antes de iniciar el pago." },
@@ -147,23 +297,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    try {
-      await upsertClienteFromOrder(admin, {
-        name: customer.name,
-        email: customer.email,
-        phone: customer.phone ?? null,
-        address: customer.address,
-        city: customer.city,
-        region: customer.region,
-      }, Number(total));
-    } catch (e) {
-      console.error("[cliente-upsert] error", { phase: "live_route", email: customer.email, error: String(e) });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const orderNumberLive = (orderData as any).order_number as number;
+    if (!Number.isFinite(orderNumberLive)) {
+      return NextResponse.json(
+        { error: "No se pudo crear la orden antes de iniciar el pago." },
+        { status: 500 }
+      );
     }
 
-    const commerceOrder = `TG-${orderData.order_number}`;
+    logPersistedOrderAfterInsert({
+      order_number: orderNumberLive,
+      subtotal: orderPayload.subtotal,
+      shipping_cost: orderPayload.shipping_cost,
+      total: orderPayload.total,
+      items,
+    });
+
+    try {
+      await upsertClienteFromOrder(
+        admin,
+        {
+          name: customer.name ?? "",
+          email: customer.email,
+          phone: customer.phone ?? null,
+          address: customer.address,
+          city: customer.city,
+          region: customer.region,
+        },
+        total
+      );
+    } catch (e) {
+      console.error("[cliente-upsert] error", {
+        phase: "live_route",
+        email: customer.email,
+        error: String(e),
+      });
+    }
+
+    const commerceOrder = `TG-${orderNumberLive}`;
     console.log("[order-created]", {
       mode: "live",
-      orderNumber: orderData.order_number,
+      orderNumber: orderNumberLive,
       status: "pending",
       customerEmail: customer.email,
     });
@@ -171,7 +346,7 @@ export async function POST(request: NextRequest) {
     try {
       console.log("[email] trigger notificación pedido (live)");
       await sendOrderNotification({
-        orderNumber: orderData.order_number,
+        orderNumber: orderNumberLive,
         orderStatus: "pending",
         customerName: customer.name,
         customerEmail: customer.email,
@@ -181,10 +356,10 @@ export async function POST(request: NextRequest) {
           ciudad: customer.city,
           region: customer.region,
         },
-        items: body.items ?? [],
-        subtotal: Number(body.subtotal ?? 0),
-        shippingCost: Number(body.shippingCost ?? 0),
-        total: Number(total),
+        items,
+        subtotal,
+        shippingCost,
+        total,
       });
     } catch (emailError) {
       console.error("[email-error] Falló notificación de pedido:", emailError);
@@ -203,21 +378,21 @@ export async function POST(request: NextRequest) {
 
     const siteUrl = getPublicSiteUrl();
     const params: Record<string, string> = {
-      apiKey:           FLOW_API_KEY,
-      subject:          `Compra TheGate — ${commerceOrder}`,
-      currency:         "CLP",
-      amount:           String(Math.round(total)),
-      email:            customer.email,
-      urlConfirmation:  `${siteUrl}/api/flow/webhook`,
-      urlReturn:        `${siteUrl}/checkout/confirmacion`,
+      apiKey: FLOW_API_KEY,
+      subject: `Compra TheGate — ${commerceOrder}`,
+      currency: "CLP",
+      amount: String(Math.round(total)),
+      email: customer.email,
+      urlConfirmation: `${siteUrl}/api/flow/webhook`,
+      urlReturn: `${siteUrl}/checkout/confirmacion`,
       commerceOrder,
     };
     params.s = sign(params, FLOW_SECRET_KEY);
 
     const flowRes = await fetch(`${FLOW_API_URL}/payment/create`, {
-      method:  "POST",
+      method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body:    new URLSearchParams(params).toString(),
+      body: new URLSearchParams(params).toString(),
     });
 
     const flowData = await flowRes.json();
@@ -230,25 +405,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Store Flow token on the pending order (non-critical)
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (createAdminClient() as any)
+      await (admin as any)
         .from("orders")
         .update({
           flow_token: flowData.token,
           flow_order: String(flowData.flowOrder),
         })
-        .eq("status", "pending")
-        .is("flow_token", null);
+        .eq("order_number", orderNumberLive);
     } catch {
       // Non-critical
     }
 
     return NextResponse.json({
-      redirectUrl:   `${flowData.url}?token=${flowData.token}`,
-      token:         flowData.token,
-      flowOrder:     flowData.flowOrder,
+      redirectUrl: `${flowData.url}?token=${flowData.token}`,
+      token: flowData.token,
+      flowOrder: flowData.flowOrder,
       commerceOrder,
     });
   } catch (err) {

@@ -28,6 +28,10 @@ export interface Database {
           meta_title: string | null;
           meta_desc: string | null;
           active: boolean;
+          discount_enabled: boolean;
+          discount_max_percent: number;
+          discount_steps: Json;
+          discount_label: string | null;
           created_at: string;
           updated_at: string;
         };

@@ -88,6 +88,9 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
             <h1 className="font-display text-3xl font-bold tracking-tight text-[var(--color-text)] sm:text-4xl">
               Todos los productos
             </h1>
+            <p className="mt-1.5 max-w-2xl text-[12px] font-normal leading-snug text-[var(--color-text-muted)]/90 sm:mt-2 sm:text-[13px] sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
+              Agrega más unidades y desbloquea mejores precios en productos seleccionados.
+            </p>
             <p className="mt-1 text-sm text-[var(--color-text-muted)]">
               {displayed.length}{" "}
               {displayed.length === 1 ? "producto" : "productos"}

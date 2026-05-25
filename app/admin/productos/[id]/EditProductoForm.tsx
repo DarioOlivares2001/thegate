@@ -13,6 +13,19 @@ import { toast } from "@/components/ui/Toast";
 import { updateProductAction } from "../nuevo/actions";
 import { compressImageIfNeeded } from "@/lib/images/compressImage";
 import { ECOMMERCE_CATEGORIES, normalizeProductCategory } from "@/lib/product/categories";
+import type { Json } from "@/lib/supabase/types";
+import { normalizeDiscountSteps } from "@/lib/discounts";
+import {
+  ADMIN_DEFAULT_LABEL,
+  ADMIN_DEFAULT_MAX_PERCENT,
+  validateVolumeDiscountForSave,
+  volumeDiscountFormRowsToSteps,
+} from "@/lib/admin/productVolumeDiscounts";
+import {
+  ProductVolumeDiscountSection,
+  defaultVolumeDiscountStepRows,
+  type VolumeDiscountStepRow,
+} from "@/components/admin/ProductVolumeDiscountSection";
 
 // ─── Rich text editor (client-only) ──────────────────────────────────────────
 
@@ -90,6 +103,10 @@ type EditableProduct = {
   variants: Record<string, string[]> | null;
   options: Array<{ name: string; values: string[] }> | null;
   images: string[] | null;
+  discount_enabled?: boolean | null;
+  discount_max_percent?: number | null;
+  discount_label?: string | null;
+  discount_steps?: Json | null;
 };
 
 // ─── Shared input style ───────────────────────────────────────────────────────
@@ -195,6 +212,19 @@ export function EditProductoForm({
   );
   const [dropOver, setDropOver] = useState(false);
   const [dragSrcIdx, setDragSrcIdx] = useState<number | null>(null);
+
+  const [discountEnabled, setDiscountEnabled] = useState(product.discount_enabled === true);
+  const [discountMaxPercent, setDiscountMaxPercent] = useState(
+    String(product.discount_max_percent ?? 0)
+  );
+  const [discountLabel, setDiscountLabel] = useState(product.discount_label ?? "");
+  const [discountSteps, setDiscountSteps] = useState<VolumeDiscountStepRow[]>(() =>
+    normalizeDiscountSteps(product.discount_steps).map((s, i) => ({
+      id: `step-init-${i}-${s.minQty}`,
+      minQty: String(s.minQty),
+      percent: String(s.percent),
+    }))
+  );
 
   // Revoke blob URLs on unmount
   useEffect(() => {
@@ -311,6 +341,15 @@ export function EditProductoForm({
     );
   }
 
+  function handleVolumeDiscountEnabled(v: boolean) {
+    if (v && discountSteps.length === 0) {
+      setDiscountMaxPercent(String(ADMIN_DEFAULT_MAX_PERCENT));
+      setDiscountLabel(ADMIN_DEFAULT_LABEL);
+      setDiscountSteps(defaultVolumeDiscountStepRows());
+    }
+    setDiscountEnabled(v);
+  }
+
   // ── Submit ──────────────────────────────────────────────────────────────────
 
   async function handleSubmit(e: React.FormEvent) {
@@ -324,6 +363,17 @@ export function EditProductoForm({
       !variantRows.some((r) => r.active && Number(r.price) > 0)
     ) {
       return toast.error("Ingresa al menos una variante activa con precio válido");
+    }
+
+    const stepsNum = volumeDiscountFormRowsToSteps(discountSteps);
+    const volumeCheck = validateVolumeDiscountForSave(
+      discountEnabled,
+      Number(discountMaxPercent),
+      discountLabel.trim() || null,
+      stepsNum
+    );
+    if (!volumeCheck.ok) {
+      return toast.error(volumeCheck.error);
     }
 
     setLoading(true);
@@ -377,6 +427,13 @@ export function EditProductoForm({
           fd.append(`slot_${i}_file`, img.file);
         }
       });
+
+      fd.append("discount_enabled", volumeCheck.data.discount_enabled ? "true" : "false");
+      if (volumeCheck.data.discount_enabled) {
+        fd.append("discount_max_percent", String(volumeCheck.data.discount_max_percent));
+        fd.append("discount_label", volumeCheck.data.discount_label ?? "");
+        fd.append("discount_steps_json", JSON.stringify(volumeCheck.data.discount_steps));
+      }
 
       const result = await updateProductAction(product.id, fd);
       if (result.error) {
@@ -657,6 +714,17 @@ export function EditProductoForm({
                 ))}
               </select>
             </Card>
+
+            <ProductVolumeDiscountSection
+              enabled={discountEnabled}
+              onEnabledChange={handleVolumeDiscountEnabled}
+              maxPercent={discountMaxPercent}
+              onMaxPercentChange={setDiscountMaxPercent}
+              label={discountLabel}
+              onLabelChange={setDiscountLabel}
+              steps={discountSteps}
+              onStepsChange={setDiscountSteps}
+            />
 
             {/* Product type */}
             <Card title="Tipo de producto">

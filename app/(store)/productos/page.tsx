@@ -29,7 +29,9 @@ async function getProducts(): Promise<Product[]> {
     const supabase = createClient();
     const { data } = await supabase
       .from("products")
-      .select("id, slug, name, price, compare_at_price, stock, images, category, active, created_at")
+      .select(
+        "id, slug, name, price, compare_at_price, stock, images, category, active, created_at, has_variants, variants, discount_enabled, discount_max_percent, discount_steps, discount_label"
+      )
       .eq("active", true)
       .order("created_at", { ascending: false });
     const queryMs = performance.now() - queryStart;

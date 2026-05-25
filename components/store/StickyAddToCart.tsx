@@ -6,11 +6,16 @@ import { useCartStore } from "@/lib/cart/store";
 import { pixelEvents } from "@/lib/pixel/events";
 import { formatPrice } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
+import { toast } from "@/components/ui/Toast";
 import type { Product } from "@/lib/supabase/types";
+import { productRequiresVariantChoice } from "@/lib/product/catalogVariants";
+import { getDiscountedUnitPrice } from "@/lib/discounts";
 
 interface StickyAddToCartProps {
   product: Product;
   targetRef: RefObject<HTMLElement>;
+  /** Precio lista (variante/producto); si se envía, el sticker usa descuento por cantidad a 1 u. */
+  baseUnitPrice?: number;
   price?: number;
   stock?: number;
   image?: string;
@@ -22,6 +27,7 @@ interface StickyAddToCartProps {
 export function StickyAddToCart({
   product,
   targetRef,
+  baseUnitPrice,
   price,
   stock,
   image,
@@ -33,9 +39,18 @@ export function StickyAddToCart({
   const [adding, setAdding] = useState(false);
   const add = useCartStore((s) => s.add);
   const openDrawer = useCartStore((s) => s.openDrawer);
-  const effectivePrice = price ?? product.price;
+  const listUnit = baseUnitPrice ?? price ?? product.price;
+  const volumeInput = {
+    price: listUnit,
+    discount_enabled: product.discount_enabled,
+    discount_max_percent: product.discount_max_percent,
+    discount_steps: product.discount_steps,
+    discount_label: product.discount_label,
+  };
+  const displayUnit = getDiscountedUnitPrice(volumeInput, 1, listUnit);
   const effectiveStock = stock ?? product.stock;
   const effectiveImage = image ?? product.images?.[0] ?? "";
+  const blockAddForVariants = productRequiresVariantChoice(product) && !selectedVariantId?.trim();
 
   // Show sticky bar when the main CTA leaves the viewport
   useEffect(() => {
@@ -52,20 +67,31 @@ export function StickyAddToCart({
   }, [targetRef]);
 
   async function handleAdd() {
-    if (adding || effectiveStock === 0) return;
+    if (adding || effectiveStock === 0 || blockAddForVariants) return;
 
     setAdding(true);
     try {
-      add({
+      const ok = add({
         product_id: product.id,
+        has_variants: productRequiresVariantChoice(product),
+        product_slug: product.slug,
         variant_id: selectedVariantId,
         name: product.name,
-        price: effectivePrice,
+        price: listUnit,
         quantity: 1,
         image: effectiveImage,
         variant: selectedVariant,
         option_values: selectedOptionValues,
+        unitListPrice: listUnit,
+        discount_enabled: product.discount_enabled,
+        discount_max_percent: product.discount_max_percent,
+        discount_steps: product.discount_steps,
+        discount_label: product.discount_label,
       });
+      if (!ok) {
+        toast.error("Selecciona una variante en la ficha antes de agregar.");
+        return;
+      }
       pixelEvents.addToCart(product, 1);
       openDrawer();
     } finally {
@@ -94,7 +120,7 @@ export function StickyAddToCart({
                   {product.name}
                 </p>
                 <p className="text-sm font-bold text-[var(--color-text)]">
-                  {formatPrice(effectivePrice)}
+                  {formatPrice(displayUnit)}
                 </p>
               </div>
 
@@ -102,7 +128,7 @@ export function StickyAddToCart({
               <Button
                 onClick={handleAdd}
                 loading={adding}
-                disabled={effectiveStock === 0}
+                disabled={effectiveStock === 0 || blockAddForVariants}
                 size="md"
                 className="shrink-0 min-w-[140px]"
               >

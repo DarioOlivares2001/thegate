@@ -82,19 +82,28 @@ export function CheckoutRecommendations({
       try {
         const effectivePrice =
           typeof p.offerPrice === "number" && p.offerPrice > 0 ? p.offerPrice : p.price;
+        const isOffer =
+          typeof p.offerPrice === "number" && p.offerPrice > 0 && p.offerPrice < p.price;
         add({
           product_id: p.id,
+          has_variants: false,
+          product_slug: p.slug,
           name: p.name,
           price: effectivePrice,
           quantity: 1,
           image,
-          isUpsellOffer:
-            typeof p.offerPrice === "number" && p.offerPrice > 0 && p.offerPrice < p.price,
-          originalPrice:
-            typeof p.offerPrice === "number" && p.offerPrice > 0 && p.offerPrice < p.price
-              ? p.price
+          source: isOffer ? "upsell" : undefined,
+          applied_discount_percent: isOffer ? p.discountPercent : undefined,
+          expected_unit_price: isOffer ? effectivePrice : undefined,
+          unitListPrice: p.price,
+          discount_enabled: p.discount_enabled === true,
+          discount_max_percent:
+            typeof p.discount_max_percent === "number" && Number.isFinite(p.discount_max_percent)
+              ? p.discount_max_percent
               : undefined,
-          discountPercent: p.discountPercent,
+          isUpsellOffer: isOffer,
+          originalPrice: isOffer ? p.price : undefined,
+          discountPercent: isOffer ? p.discountPercent : undefined,
         });
         setProducts((prev) => prev.filter((x) => x.id !== p.id));
       } finally {

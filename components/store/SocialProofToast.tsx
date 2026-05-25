@@ -26,11 +26,21 @@ export function SocialProofToast({ products }: Props) {
   const [mounted, setMounted] = useState(false);
   const [tick, setTick] = useState(0);
   const [visible, setVisible] = useState(false);
+  const [payload, setPayload] = useState<{
+    city: string;
+    product: string;
+    when: string;
+  } | null>(null);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!mounted || names.length === 0) return;
+    setPayload({
+      city: randomFrom(CITIES),
+      product: randomFrom(names),
+      when: randomFrom(TIMES),
+    });
     setVisible(true);
     const hideTimer = window.setTimeout(() => setVisible(false), 4000);
     const rotateTimer = window.setTimeout(() => setTick((v) => v + 1), nextDelayMs());
@@ -39,15 +49,6 @@ export function SocialProofToast({ products }: Props) {
       window.clearTimeout(rotateTimer);
     };
   }, [mounted, tick, names]);
-
-  const payload = useMemo(() => {
-    if (names.length === 0) return null;
-    return {
-      city: randomFrom(CITIES),
-      product: randomFrom(names),
-      when: randomFrom(TIMES),
-    };
-  }, [names, tick]);
 
   if (!mounted || !payload) return null;
 
