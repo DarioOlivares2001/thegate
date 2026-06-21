@@ -396,6 +396,25 @@ export function OrderDetail({ order }: { order: any }) {
           <h2 className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
             Productos
           </h2>
+          <span
+            className={`ml-auto inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
+              order.stock_discounted === true
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-zinc-200 bg-zinc-50 text-zinc-500"
+            }`}
+            title={
+              order.stock_discounted === true
+                ? "El stock ya fue descontado al confirmarse el pago."
+                : "Aún no se descuenta stock (pendiente de pago o sin confirmar)."
+            }
+          >
+            <span
+              className={`h-1 w-1 rounded-full ${
+                order.stock_discounted === true ? "bg-emerald-500" : "bg-zinc-400"
+              }`}
+            />
+            {order.stock_discounted === true ? "Stock descontado" : "Stock no descontado"}
+          </span>
         </div>
         <div className="p-3">
           {items.length === 0 ? (

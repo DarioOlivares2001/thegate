@@ -9,6 +9,8 @@ import {
   recalculateCheckoutOrder,
   type RecalculatedOrderLine,
 } from "@/lib/checkout/recalculateCheckoutOrder";
+import { confirmPaidOrderAndDecrementStock } from "@/lib/orders/confirmPaidAndDecrementStock";
+import { revalidateAfterStockChange } from "@/lib/orders/revalidateAfterStockChange";
 
 const FLOW_API_URL = process.env.FLOW_API_URL ?? "https://sandbox.flow.cl/api";
 const FLOW_API_KEY = process.env.FLOW_API_KEY ?? "";
@@ -203,7 +205,7 @@ export async function POST(request: NextRequest) {
       const { data, error } = await (admin as any)
         .from("orders")
         .insert(mockPayload)
-        .select("order_number")
+        .select("id, order_number")
         .single();
 
       if (error) {
@@ -213,6 +215,29 @@ export async function POST(request: NextRequest) {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderNumber = (data as any).order_number as number;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const orderId = (data as any).id as string;
+
+      // Descontar stock atómicamente (paid en mock = pago confirmado).
+      const stockRes = await confirmPaidOrderAndDecrementStock(admin, orderId);
+      if (!stockRes.ok) {
+        console.error("[Flow mock][stock] error descontando stock", {
+          orderNumber,
+          orderId,
+          error: stockRes.error,
+          code: stockRes.code,
+        });
+      } else {
+        console.log("[Flow mock][stock] descuento aplicado", {
+          orderNumber,
+          alreadyDiscounted: stockRes.alreadyDiscounted,
+          decrementedLines: stockRes.decrementedLines,
+          finalStatus: stockRes.finalStatus,
+        });
+        if (!stockRes.alreadyDiscounted && stockRes.decrementedLines > 0) {
+          revalidateAfterStockChange();
+        }
+      }
       try {
         await upsertClienteFromOrder(
           admin,
