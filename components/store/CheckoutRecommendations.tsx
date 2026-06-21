@@ -57,7 +57,14 @@ export function CheckoutRecommendations({
               ? data.title
               : "Antes de pagar, muchos agregan esto"
           );
-          setProducts(Array.isArray(data.products) ? data.products : []);
+          // Filtro defensivo: solo productos con descuento habilitado y tope > 0.
+          const safe = (Array.isArray(data.products) ? data.products : []).filter(
+            (p) =>
+              p &&
+              p.discount_enabled === true &&
+              Number(p.discount_max_percent) > 0
+          );
+          setProducts(safe);
         }
       } catch {
         if (!cancelled) {
@@ -80,10 +87,14 @@ export function CheckoutRecommendations({
       const image = p.images?.[0] ?? "";
       setAddingId(p.id);
       try {
+        // Línea de upsell: precio fijo con `applied_discount_percent` (= 5% o cap).
+        // No usa discount_steps; no escala por cantidad.
         const effectivePrice =
           typeof p.offerPrice === "number" && p.offerPrice > 0 ? p.offerPrice : p.price;
-        const isOffer =
-          typeof p.offerPrice === "number" && p.offerPrice > 0 && p.offerPrice < p.price;
+        const discountPct =
+          typeof p.discountPercent === "number" && p.discountPercent > 0
+            ? p.discountPercent
+            : 0;
         add({
           product_id: p.id,
           has_variants: false,
@@ -92,18 +103,18 @@ export function CheckoutRecommendations({
           price: effectivePrice,
           quantity: 1,
           image,
-          source: isOffer ? "upsell" : undefined,
-          applied_discount_percent: isOffer ? p.discountPercent : undefined,
-          expected_unit_price: isOffer ? effectivePrice : undefined,
+          source: "upsell",
+          applied_discount_percent: discountPct,
+          expected_unit_price: effectivePrice,
           unitListPrice: p.price,
           discount_enabled: p.discount_enabled === true,
           discount_max_percent:
             typeof p.discount_max_percent === "number" && Number.isFinite(p.discount_max_percent)
               ? p.discount_max_percent
               : undefined,
-          isUpsellOffer: isOffer,
-          originalPrice: isOffer ? p.price : undefined,
-          discountPercent: isOffer ? p.discountPercent : undefined,
+          isUpsellOffer: true,
+          originalPrice: p.price,
+          discountPercent: discountPct,
         });
         setProducts((prev) => prev.filter((x) => x.id !== p.id));
       } finally {

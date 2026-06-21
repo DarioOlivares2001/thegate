@@ -14,11 +14,6 @@ import {
   normalizeWhatsAppDigits,
 } from "@/lib/cart/whatsappCartOrder";
 import {
-  computeUpsellDiscountPercentFromPrices,
-  computeUpsellSavingsDisplay,
-  resolveUpsellReferencePrice,
-} from "@/lib/cart/upsellOfferDisplay";
-import {
   getApplicableProductDiscount,
   getNextDiscountStep,
   isDiscountEnabled,
@@ -40,6 +35,8 @@ type UpsellOffer = {
   stock: number;
   discount_enabled?: boolean;
   discount_max_percent?: number | null;
+  /** Escalones de descuento por cantidad del producto (para aplicar en carrito). */
+  discount_steps?: unknown;
 };
 
 function CartVolumeHint({ item }: { item: CartItem }) {
@@ -160,31 +157,29 @@ export function CartDrawer({
     return `${mm}:${ss}`;
   }, [remainingSeconds]);
 
+  /**
+   * Visual de la oferta sin involucrar `compare_at_price`.
+   * El % aplicado proviene del servidor (step alcanzado), acotado por
+   * `discount_max_percent`. Si no hay descuento real, se devuelve precio lista.
+   */
   const resolveOfferVisual = (offer: UpsellOffer) => {
     const list = Number.isFinite(offer.price) ? offer.price : 0;
     const offerPrice = Number.isFinite(offer.offerPrice) ? offer.offerPrice : list;
-    const compare = offer.compare_at_price;
-    const originalPrice = resolveUpsellReferencePrice({
-      listPrice: list,
-      compareAtPrice: compare,
-      offerPrice,
-    });
-    const displayCap =
-      offer.discount_enabled === true
-        ? Math.min(100, Math.max(0, Number(offer.discount_max_percent) || 0))
-        : null;
-    const discountPercent = computeUpsellDiscountPercentFromPrices({
-      listPrice: list,
-      compareAtPrice: compare,
-      offerPrice,
-      discountPercentHint:
-        typeof offer.discountPercent === "number" && offer.discountPercent > 0
-          ? offer.discountPercent
-          : null,
-      displayPercentCap: displayCap,
-    });
-    const savings = computeUpsellSavingsDisplay(list, compare, offerPrice);
-    return { originalPrice, offerPrice, savings, discountPercent };
+    const enabled = offer.discount_enabled === true;
+    const cap = Math.min(
+      100,
+      Math.max(0, Number(offer.discount_max_percent) || 0)
+    );
+    const rawPct =
+      typeof offer.discountPercent === "number" && offer.discountPercent > 0
+        ? Math.round(offer.discountPercent)
+        : 0;
+    const discountPercent = enabled && cap > 0 ? Math.min(rawPct, cap) : 0;
+    if (discountPercent <= 0 || offerPrice >= list) {
+      return { originalPrice: list, offerPrice: list, savings: 0, discountPercent: 0 };
+    }
+    const savings = Math.max(0, Math.round(list - offerPrice));
+    return { originalPrice: list, offerPrice, savings, discountPercent };
   };
 
   useEffect(() => {
@@ -214,7 +209,17 @@ export function CartDrawer({
           return;
         }
         const payload = (await res.json()) as { offers?: UpsellOffer[]; title?: string };
-        setOffers(Array.isArray(payload.offers) ? payload.offers : []);
+        // Filtro defensivo: solo se renderizan ofertas reales (regla 6).
+        const safeOffers = (Array.isArray(payload.offers) ? payload.offers : []).filter(
+          (o) =>
+            o &&
+            o.discount_enabled === true &&
+            Number(o.discount_max_percent) > 0 &&
+            Number(o.discountPercent) > 0 &&
+            Number(o.offerPrice) > 0 &&
+            Number(o.offerPrice) < Number(o.price)
+        );
+        setOffers(safeOffers);
       } catch {
         if (!controller.signal.aborted) {
           setOffers([]);
@@ -229,6 +234,8 @@ export function CartDrawer({
   }, [isOpen, items]);
 
   function addUpsell(offer: UpsellOffer) {
+    // Línea de upsell: el % proviene del motor de upsells (UPSELL_BASE_PERCENT
+    // acotado por `discount_max_percent`). NO se mezcla con discount_steps.
     add({
       product_id: offer.id,
       has_variants: false,
@@ -245,6 +252,7 @@ export function CartDrawer({
         typeof offer.discount_max_percent === "number" && Number.isFinite(offer.discount_max_percent)
           ? offer.discount_max_percent
           : undefined,
+      // No se pasan discount_steps: en línea de upsell no se usan.
       isUpsellOffer: true,
       originalPrice: offer.price,
       discountPercent: offer.discountPercent,

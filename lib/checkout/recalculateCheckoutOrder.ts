@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
-import { getDiscountedUnitPrice, type ProductDiscountInput } from "@/lib/discounts";
+import {
+  getApplicableProductDiscount,
+  getDiscountedUnitPrice,
+  type ProductDiscountInput,
+} from "@/lib/discounts";
 import { normalizeOptimizedImageUrl } from "@/lib/images/normalizeOptimizedImageUrl";
 import { computeShippingCostClp } from "@/lib/checkout/shipping";
 
@@ -330,31 +334,30 @@ export async function recalculateCheckoutOrder(
           status: 400,
         };
       }
-      if (p.discount_enabled !== true || !(Number(p.discount_max_percent) > 0)) {
-        return {
-          ok: false,
-          error: `La oferta ya no está disponible para «${p.name}».`,
-          status: 400,
-        };
-      }
-      const requested = line.applied_discount_percent ?? 0;
-      if (!Number.isFinite(requested) || requested <= 0) {
-        return {
-          ok: false,
-          error: `Datos de oferta inválidos para «${p.name}».`,
-          status: 400,
-        };
-      }
-      const cap = Math.min(100, Math.max(0, Math.round(Number(p.discount_max_percent) || 0)));
-      const allowedPercent = Math.min(requested, cap);
+      // Upsell: % FIJO desde `applied_discount_percent` del cliente,
+      // acotado por `discount_max_percent`. NO usa discount_steps.
+      // Si discount_enabled=false ⇒ sin descuento (precio lista).
+      const enabled = p.discount_enabled === true;
+      const cap = Math.min(
+        100,
+        Math.max(0, Math.round(Number(p.discount_max_percent) || 0))
+      );
+      const requested = Math.max(
+        0,
+        Math.round(Number(line.applied_discount_percent) || 0)
+      );
+      const allowedPercent = enabled ? Math.min(requested, cap) : 0;
       const unitPrice = Math.round(listUnit * (1 - allowedPercent / 100));
       if (line.expected_unit_price !== undefined && process.env.NODE_ENV === "development") {
         const exp = Math.round(line.expected_unit_price);
         if (Number.isFinite(exp) && Math.abs(exp - unitPrice) > 1) {
-          console.info("[checkout-price] upsell expected_unit_price ≠ servidor", {
+          console.info("[checkout-price] upsell expected_unit_price ≠ servidor (cliente)", {
             name: p.name,
             expected: exp,
             serverUnit: unitPrice,
+            clientPct: line.applied_discount_percent,
+            serverPct: allowedPercent,
+            quantity: line.quantity,
           });
         }
       }
@@ -380,10 +383,7 @@ export async function recalculateCheckoutOrder(
       if (!Number.isFinite(unitPrice) || unitPrice < 0) {
         return { ok: false, error: "No se pudo calcular el precio de un ítem.", status: 500 };
       }
-      const pct =
-        listUnit > 0
-          ? Math.min(100, Math.max(0, Math.round(((listUnit - unitPrice) / listUnit) * 100)))
-          : 0;
+      const pct = getApplicableProductDiscount(discountInput, line.quantity);
       linesOut.push(
         buildOrderLine({
           p,

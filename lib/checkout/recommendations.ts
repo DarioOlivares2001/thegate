@@ -1,7 +1,29 @@
 import { normalizeOptimizedImageUrl } from "@/lib/images/normalizeOptimizedImageUrl";
+import type { Json } from "@/lib/supabase/types";
 
-const DISCOUNT_CANDIDATES = [20, 18, 15, 12, 10, 8, 5] as const;
+/** Margen mínimo de seguridad: si la oferta deja menos de esto, se anula el descuento. */
 const MIN_MARGIN_PCT = 0.25;
+
+/**
+ * % inicial del motor de UPSELLS (no del descuento por cantidad).
+ * Reglas:
+ *  - Se aplica solo a productos con `discount_enabled === true`.
+ *  - Se acota por `discount_max_percent`: `min(UPSELL_BASE_PERCENT, max)`.
+ *  - NO escala con la cantidad; cada línea con `source: "upsell"` mantiene este %.
+ */
+export const UPSELL_BASE_PERCENT = 5;
+
+/** Calcula el % de upsell efectivo: `min(UPSELL_BASE_PERCENT, discount_max_percent)`. */
+export function computeUpsellAppliedPercent(
+  discountMaxPercent: number | null | undefined
+): number {
+  const cap = Math.min(
+    100,
+    Math.max(0, Math.round(Number(discountMaxPercent) || 0))
+  );
+  if (cap <= 0) return 0;
+  return Math.min(UPSELL_BASE_PERCENT, cap);
+}
 
 const CONTEXT_RULES = [
   {
@@ -53,6 +75,7 @@ export type CheckoutRecProduct = Pick<
   savings?: number;
   discount_enabled?: boolean;
   discount_max_percent?: number | null;
+  discount_steps?: Json;
 };
 
 export function getRecommendationContext(cartProductNames: string[]): {
@@ -84,36 +107,41 @@ function scoreGenericComplementary(product: CheckoutRecRow): number {
   return genericHints.reduce((acc, k) => acc + (blob.includes(k) ? 1 : 0), 0);
 }
 
-function buildEffectivePercentsDescending(maxPercent: number): number[] {
-  const cap = Math.min(100, Math.max(0, Math.round(Number(maxPercent) || 0)));
-  if (cap <= 0) return [];
-  const raw = [...DISCOUNT_CANDIDATES].map((c) => Math.min(c, cap)).filter((p) => p > 0);
-  return Array.from(new Set(raw)).sort((a, b) => b - a);
-}
-
+/**
+ * Motor de UPSELLS (descuento inicial fijo, independiente de cantidad):
+ *   - Requiere `discount_enabled === true` y `discount_max_percent > 0`.
+ *   - El % aplicado es `min(UPSELL_BASE_PERCENT, discount_max_percent)`.
+ *     Ej: max=15 ⇒ 5%; max=3 ⇒ 3%; max=0 ⇒ no aparece.
+ *   - Se anula si el precio resultante deja menos margen que `MIN_MARGIN_PCT`
+ *     frente al `cost_price` (cuando hay).
+ *
+ * Esta función NO se usa para cobrar descuentos por cantidad (eso sigue siendo
+ * step-based desde `discount_steps`).
+ */
 function safeDiscount(
   price: number,
   costPrice: number | null | undefined,
   product: Pick<CheckoutRecRow, "discount_enabled" | "discount_max_percent">
 ): { offerPrice: number; discountPercent: number; savings: number } | null {
   if (product.discount_enabled !== true) return null;
-  const maxP = Math.min(100, Math.max(0, Number(product.discount_max_percent) || 0));
-  const percents = buildEffectivePercentsDescending(maxP);
-  if (percents.length === 0) return null;
-  if (!costPrice || costPrice <= 0 || price <= 0) return null;
+  if (!(price > 0)) return null;
 
-  for (const appliedPercent of percents) {
-    const offerPrice = Math.round(price * (1 - appliedPercent / 100));
-    if (offerPrice <= costPrice) continue;
+  const upsellPct = computeUpsellAppliedPercent(product.discount_max_percent);
+  if (upsellPct <= 0) return null;
+
+  const offerPrice = Math.round(price * (1 - upsellPct / 100));
+  if (costPrice && costPrice > 0) {
+    if (offerPrice <= costPrice) return null;
     const marginPct = (offerPrice - costPrice) / offerPrice;
-    if (marginPct >= MIN_MARGIN_PCT) {
-      return { offerPrice, discountPercent: appliedPercent, savings: price - offerPrice };
-    }
+    if (marginPct < MIN_MARGIN_PCT) return null;
   }
-  return null;
+  return { offerPrice, discountPercent: upsellPct, savings: price - offerPrice };
 }
 
-/** Upsell con tope `discount_max_percent` y sin oferta si `discount_enabled` es false. */
+/**
+ * Upsell: anuncia el tope `discount_max_percent` como % de oferta.
+ * Devuelve null si el producto no está habilitado o el margen lo invalida.
+ */
 export function computeSafeUpsellDiscountFromProduct(
   price: number,
   costPrice: number | null | undefined,
@@ -134,8 +162,15 @@ export function pickCheckoutRecommendations(
 ): { title: string; products: CheckoutRecProduct[] } {
   const ex = new Set(excludeProductIds);
   const { title, recommendKeywords } = getRecommendationContext(cartProductNames);
+  // Solo entran al "pool de ofertas" productos con descuento habilitado y tope > 0.
+  // discount_max_percent es TOPE, no descuento aplicado; el % real lo decide safeDiscount.
   const pool = rows.filter(
-    (p) => !ex.has(p.id) && p.stock > 0 && p.has_variants !== true
+    (p) =>
+      !ex.has(p.id) &&
+      p.stock > 0 &&
+      p.has_variants !== true &&
+      p.discount_enabled === true &&
+      Number(p.discount_max_percent) > 0
   );
 
   const scored = pool
@@ -151,13 +186,13 @@ export function pickCheckoutRecommendations(
   const picked: CheckoutRecProduct[] = [];
   const seen = new Set<string>();
 
-  for (const { p } of scored) {
-    if (picked.length >= max) break;
-    if (seen.has(p.id)) continue;
+  function toProduct(p: CheckoutRecRow): CheckoutRecProduct {
+    // El % anunciado del upsell es el tope `discount_max_percent` (no step-based).
     const safe = safeDiscount(p.price, p.cost_price, p);
-    if (!safe) continue;
-    seen.add(p.id);
-    picked.push({
+    const offerPrice = safe?.offerPrice ?? p.price;
+    const discountPercent = safe?.discountPercent ?? 0;
+    const savings = safe?.savings ?? 0;
+    return {
       id: p.id,
       slug: p.slug,
       name: p.name,
@@ -166,12 +201,20 @@ export function pickCheckoutRecommendations(
       images: (Array.isArray(p.images) ? p.images : []).map((img) =>
         normalizeOptimizedImageUrl(String(img ?? ""))
       ),
-      offerPrice: safe.offerPrice,
-      discountPercent: safe.discountPercent,
-      savings: safe.savings,
+      offerPrice,
+      discountPercent,
+      savings,
       discount_enabled: p.discount_enabled === true,
       discount_max_percent: p.discount_max_percent ?? null,
-    });
+      discount_steps: (Array.isArray(p.discount_steps) ? p.discount_steps : []) as Json,
+    };
+  }
+
+  for (const { p } of scored) {
+    if (picked.length >= max) break;
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    picked.push(toProduct(p));
   }
 
   if (picked.length < max) {
@@ -180,24 +223,8 @@ export function pickCheckoutRecommendations(
       .sort((a, b) => b.stock - a.stock);
     for (const p of rest) {
       if (picked.length >= max) break;
-      const safe = safeDiscount(p.price, p.cost_price, p);
-      if (!safe) continue;
       seen.add(p.id);
-      picked.push({
-        id: p.id,
-        slug: p.slug,
-        name: p.name,
-        price: p.price,
-        compare_at_price: p.compare_at_price ?? null,
-        images: (Array.isArray(p.images) ? p.images : []).map((img) =>
-          normalizeOptimizedImageUrl(String(img ?? ""))
-        ),
-        offerPrice: safe.offerPrice,
-        discountPercent: safe.discountPercent,
-        savings: safe.savings,
-        discount_enabled: p.discount_enabled === true,
-        discount_max_percent: p.discount_max_percent ?? null,
-      });
+      picked.push(toProduct(p));
     }
   }
 

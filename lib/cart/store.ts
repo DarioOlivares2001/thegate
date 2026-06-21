@@ -148,9 +148,21 @@ export function cartItemToDiscountInput(item: CartItem): ProductDiscountInput {
 function recalcItemPrice(item: CartItem): CartItem {
   const base = normalizeIncomingCartItem(item);
   const isUpsellLine = base.source === "upsell" || base.isUpsellOffer === true;
+
   if (isUpsellLine) {
-    return { ...base, price: Math.round(Number(base.price) || 0) };
+    // Línea de UPSELL: precio fijo basado en `applied_discount_percent`,
+    // acotado por `discount_max_percent`. NO escala por cantidad
+    // (cada unidad mantiene el % del upsell mientras `source === "upsell"`).
+    const list = Math.max(0, Number(base.unitListPrice ?? base.price) || 0);
+    const enabled = base.discount_enabled === true;
+    const cap = Math.min(100, Math.max(0, Number(base.discount_max_percent) || 0));
+    const requested = Math.max(0, Math.round(Number(base.applied_discount_percent) || 0));
+    const pct = enabled ? Math.min(requested, cap) : 0;
+    const unit = Math.round(list * (1 - pct / 100));
+    return { ...base, price: unit };
   }
+
+  // Línea normal: descuento por cantidad (step-based) desde `discount_steps`.
   const unit = getDiscountedUnitPrice(cartItemToDiscountInput(base), base.quantity);
   return { ...base, price: unit };
 }
@@ -236,7 +248,7 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: "thegate-cart",
-      version: 3,
+      version: 5,
       migrate: (persisted) => {
         const raw = persisted as { items?: CartItem[] } | undefined;
         const items = Array.isArray(raw?.items) ? raw.items : [];
