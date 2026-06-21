@@ -9,6 +9,12 @@ import { deleteProductAction } from "./nuevo/actions";
 
 export const metadata: Metadata = { title: "Productos — Admin" };
 
+// Forzamos render dinámico: el stock se descuenta al pagarse una orden
+// (flow/create mock + flow/webhook real). Si esta page quedara cacheada,
+// el admin mostraría stock antiguo hasta el siguiente full reload.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 async function getAllProducts() {
   try {
     const supabase = createAdminClient();

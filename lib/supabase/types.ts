@@ -32,10 +32,14 @@ export interface Database {
           discount_max_percent: number;
           discount_steps: Json;
           discount_label: string | null;
+          product_sections: Json;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["products"]["Row"], "id" | "created_at" | "updated_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["products"]["Row"],
+          "id" | "created_at" | "updated_at" | "product_sections"
+        > & { product_sections?: Json };
         Update: Partial<Database["public"]["Tables"]["products"]["Insert"]>;
       };
       product_variants: {
@@ -77,10 +81,14 @@ export interface Database {
           flow_token: string | null;
           flow_order: string | null;
           notes: string | null;
+          stock_discounted: boolean;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["orders"]["Row"], "id" | "order_number" | "created_at" | "updated_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["orders"]["Row"],
+          "id" | "order_number" | "created_at" | "updated_at" | "stock_discounted"
+        > & { stock_discounted?: boolean };
         Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
       };
       reviews: {
@@ -216,7 +224,17 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      confirm_paid_order_and_decrement_stock: {
+        Args: { p_order_id: string };
+        Returns: {
+          order_id: string;
+          already_discounted: boolean;
+          decremented_lines: number;
+          final_status: string;
+        }[];
+      };
+    };
     Enums: Record<string, never>;
   };
 }

@@ -37,20 +37,17 @@ import {
   isLastDiscountTier,
 } from "@/lib/discounts";
 import type { Database, Product, Review } from "@/lib/supabase/types";
+import type { ProductUpsellSuggestion } from "@/lib/product/upsell";
+import {
+  ProductSectionsRenderer,
+  hasVisibleProductSections,
+} from "@/components/store/product-sections/ProductSectionsRenderer";
 
 interface Props {
   product: Product;
   reviews: Review[];
   variants: Database["public"]["Tables"]["product_variants"]["Row"][];
-  upsellSuggestions?: {
-    id: string;
-    name: string;
-    image: string;
-    price: number;
-    offerPrice: number;
-    discountPercent: number;
-    savings: number;
-  }[];
+  upsellSuggestions?: ProductUpsellSuggestion[];
 }
 
 type ProductVariant = Database["public"]["Tables"]["product_variants"]["Row"];
@@ -423,6 +420,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
   );
 
   const hasDescription = !!product.description?.trim();
+  const hasModularSections = hasVisibleProductSections(product.product_sections);
   const urgencyMessage =
     displayStock < 10
       ? "🔥 Quedan pocas unidades"
@@ -516,24 +514,30 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
     }
   }
 
-  function handleAddSuggestion(s: {
-    id: string;
-    name: string;
-    image: string;
-    offerPrice: number;
-    price: number;
-    discountPercent: number;
-  }) {
+  function handleAddSuggestion(s: ProductUpsellSuggestion) {
+    // Línea de upsell: precio fijo con `applied_discount_percent`. No usa discount_steps.
+    const offerPrice = s.offerPrice > 0 ? s.offerPrice : s.price;
+    const pct = s.discountPercent > 0 ? s.discountPercent : 0;
     add({
       product_id: s.id,
       has_variants: false,
+      product_slug: s.slug,
       name: s.name,
-      price: s.offerPrice,
+      price: offerPrice,
       quantity: 1,
       image: s.image,
-      isUpsellOffer: s.offerPrice < s.price,
-      originalPrice: s.offerPrice < s.price ? s.price : undefined,
-      discountPercent: s.discountPercent > 0 ? s.discountPercent : undefined,
+      source: "upsell",
+      applied_discount_percent: pct,
+      expected_unit_price: offerPrice,
+      unitListPrice: s.price,
+      discount_enabled: s.discount_enabled === true,
+      discount_max_percent:
+        typeof s.discount_max_percent === "number" && Number.isFinite(s.discount_max_percent)
+          ? s.discount_max_percent
+          : undefined,
+      isUpsellOffer: true,
+      originalPrice: s.price,
+      discountPercent: pct,
     });
     setAddedSuggestionId(s.id);
     window.setTimeout(() => setAddedSuggestionId((prev) => (prev === s.id ? null : prev)), 1200);
@@ -720,7 +724,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
 
           {/* Variants */}
           {hasRealVariants ? (
-            <div className="flex flex-col gap-2">
+            <div id="pdp-variants" className="flex flex-col gap-2 scroll-mt-24 rounded-[var(--radius-md)] transition-shadow duration-300">
               <span className="text-sm font-semibold text-[var(--color-text)]">Cantidad:</span>
               <div className="flex flex-wrap gap-2">
                 {activeVariants.map((variant) => {
@@ -749,41 +753,43 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
               </div>
             </div>
           ) : variantGroups ? (
-            Object.entries(variantGroups).map(([group, options]) => (
-              <div key={group} className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-[var(--color-text)]">
-                    {group}:
-                  </span>
-                  {selectedVariants[group] && (
-                    <span className="text-sm text-[var(--color-text-muted)]">
-                      {selectedVariants[group]}
+            <div id="pdp-variants" className="flex flex-col gap-4 scroll-mt-24 rounded-[var(--radius-md)] transition-shadow duration-300">
+              {Object.entries(variantGroups).map(([group, options]) => (
+                <div key={group} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-[var(--color-text)]">
+                      {group}:
                     </span>
-                  )}
+                    {selectedVariants[group] && (
+                      <span className="text-sm text-[var(--color-text-muted)]">
+                        {selectedVariants[group]}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {options.map((opt) => {
+                      const selected = selectedVariants[group] === opt;
+                      return (
+                        <button
+                          key={opt}
+                          onClick={() =>
+                            setSelectedVariants((prev) => ({ ...prev, [group]: opt }))
+                          }
+                          className={clsx(
+                            "rounded-[var(--radius-sm)] border px-3 py-1.5 text-sm font-medium transition-colors",
+                            selected
+                              ? "border-transparent [background:var(--brand-gradient)] text-white"
+                              : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:border-[var(--color-primary)]"
+                          )}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {options.map((opt) => {
-                    const selected = selectedVariants[group] === opt;
-                    return (
-                      <button
-                        key={opt}
-                        onClick={() =>
-                          setSelectedVariants((prev) => ({ ...prev, [group]: opt }))
-                        }
-                        className={clsx(
-                          "rounded-[var(--radius-sm)] border px-3 py-1.5 text-sm font-medium transition-colors",
-                          selected
-                            ? "border-transparent [background:var(--brand-gradient)] text-white"
-                            : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:border-[var(--color-primary)]"
-                        )}
-                      >
-                        {opt}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
+              ))}
+            </div>
           ) : null}
 
           {/* Cantidad (afecta precio por volumen y tabla de escalones) */}
@@ -946,8 +952,12 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
         </div>
       </div>
 
-      {/* ── Description ── */}
-      {hasDescription && (
+      {/* ── Descripción / Bloques modulares ── */}
+      {hasModularSections ? (
+        <div className="mt-12 sm:mt-16">
+          <ProductSectionsRenderer sections={product.product_sections} />
+        </div>
+      ) : hasDescription ? (
         <section className="mx-auto mt-20 max-w-2xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -1054,7 +1064,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             </div>
           </motion.div>
         </section>
-      )}
+      ) : null}
 
       {/* ── Reviews ── */}
       <section className="mt-20 px-4 sm:px-6 lg:px-8">
@@ -1420,6 +1430,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
       <StickyAddToCart
         product={product}
         baseUnitPrice={displayPrice}
+        compareAtPrice={displayCompareAt ?? null}
         stock={displayStock}
         image={displayImage}
         targetRef={mainCTARef}

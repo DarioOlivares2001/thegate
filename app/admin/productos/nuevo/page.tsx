@@ -24,6 +24,7 @@ import {
   defaultVolumeDiscountStepRows,
   type VolumeDiscountStepRow,
 } from "@/components/admin/ProductVolumeDiscountSection";
+import { ProductSectionsBuilder } from "@/components/admin/product-sections/ProductSectionsBuilder";
 
 // ─── Rich text editor (client-only) ──────────────────────────────────────────
 
@@ -320,6 +321,17 @@ export default function NuevoProductoPage() {
       fd.append("image_count", String(images.length));
       images.forEach((img, i) => fd.append(`image_${i}`, img.file));
 
+      // ── Bloques modulares ───────────────────────────────────────────────
+      // El builder pinta un <input type="hidden" name="product_sections_json" />
+      // dentro de este mismo <form>. Como construimos el FormData a mano (no
+      // desde el form DOM, para poder mezclar Files manualmente), tenemos que
+      // leer su valor explícitamente.
+      const formEl = e.currentTarget as HTMLFormElement;
+      const sectionsInput = formEl.querySelector<HTMLInputElement>(
+        'input[name="product_sections_json"]'
+      );
+      fd.append("product_sections_json", sectionsInput?.value ?? "[]");
+
       fd.append("discount_enabled", volumeCheck.data.discount_enabled ? "true" : "false");
       if (volumeCheck.data.discount_enabled) {
         fd.append("discount_max_percent", String(volumeCheck.data.discount_max_percent));
@@ -406,7 +418,17 @@ export default function NuevoProductoPage() {
                 onChange={setDescription}
                 placeholder="Describe el producto: materiales, dimensiones, instrucciones de uso..."
               />
+              <p className="mt-2 text-xs text-zinc-400">
+                Si agregas bloques modulares más abajo, estos reemplazan a la
+                descripción HTML en la ficha pública.
+              </p>
             </Card>
+
+            {/* Bloques modulares (Fase 2B) */}
+            <ProductSectionsBuilder
+              initialSections={[]}
+              hiddenInputName="product_sections_json"
+            />
 
             {/* Images */}
             <Card title="Imágenes">

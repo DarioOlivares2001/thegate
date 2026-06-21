@@ -7,6 +7,7 @@ import {
   parseVolumeDiscountFromFormData,
   volumeDiscountToJsonFields,
 } from "@/lib/admin/productVolumeDiscounts";
+import { parseProductSectionsFromFormData } from "@/lib/product/sections/parseFromFormData";
 
 export async function createProductAction(
   formData: FormData
@@ -150,6 +151,11 @@ export async function createProductAction(
   if (!volumeParsed.ok) return { error: volumeParsed.error };
   const volumeFields = volumeDiscountToJsonFields(volumeParsed.data);
 
+  // Bloques modulares (Fase 2B): se mandan como JSON string en `product_sections_json`.
+  // Si el campo no viene, se interpreta como [] (fallback a description HTML).
+  const sectionsParsed = parseProductSectionsFromFormData(formData);
+  if (!sectionsParsed.ok) return { error: sectionsParsed.error };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: productData, error } = await (supabase as any)
     .from("products")
@@ -167,9 +173,10 @@ export async function createProductAction(
     has_variants: hasVariants,
     options: hasVariants ? options : null,
     active: formData.get("active") === "true",
+    product_sections: sectionsParsed.data,
     ...volumeFields,
   })
-    .select("id")
+    .select("id, slug")
     .single();
 
   if (error) return { error: error.message };
@@ -203,6 +210,11 @@ export async function createProductAction(
   }
 
   revalidatePath("/admin/productos");
+  const createdSlug =
+    typeof productData?.slug === "string" ? productData.slug.trim() : "";
+  if (createdSlug) {
+    revalidatePath(`/productos/${createdSlug}`);
+  }
   return { success: true };
 }
 
@@ -348,6 +360,11 @@ export async function updateProductAction(
   if (!volumeParsed.ok) return { error: volumeParsed.error };
   const volumeFields = volumeDiscountToJsonFields(volumeParsed.data);
 
+  // Bloques modulares (Fase 2A): se mandan como JSON string en `product_sections_json`.
+  // Si el campo no viene, se interpreta como [] (sin tocar).
+  const sectionsParsed = parseProductSectionsFromFormData(formData);
+  if (!sectionsParsed.ok) return { error: sectionsParsed.error };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("products").update({
     name: (formData.get("name") as string).trim(),
@@ -363,6 +380,7 @@ export async function updateProductAction(
     has_variants: hasVariants,
     options: hasVariants ? options : null,
     active: formData.get("active") === "true",
+    product_sections: sectionsParsed.data,
     ...volumeFields,
   }).eq("id", id);
 
@@ -403,6 +421,10 @@ export async function updateProductAction(
 
   revalidatePath("/admin/productos");
   revalidatePath(`/admin/productos/${id}`);
+  const updatedSlug = (formData.get("slug") as string | null)?.trim();
+  if (updatedSlug) {
+    revalidatePath(`/productos/${updatedSlug}`);
+  }
   return { success: true };
 }
 

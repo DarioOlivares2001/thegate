@@ -26,6 +26,7 @@ import {
   defaultVolumeDiscountStepRows,
   type VolumeDiscountStepRow,
 } from "@/components/admin/ProductVolumeDiscountSection";
+import { ProductSectionsBuilder } from "@/components/admin/product-sections/ProductSectionsBuilder";
 
 // ─── Rich text editor (client-only) ──────────────────────────────────────────
 
@@ -107,6 +108,7 @@ type EditableProduct = {
   discount_max_percent?: number | null;
   discount_label?: string | null;
   discount_steps?: Json | null;
+  product_sections?: Json | null;
 };
 
 // ─── Shared input style ───────────────────────────────────────────────────────
@@ -383,6 +385,17 @@ export function EditProductoForm({
       fd.append("description", description);
       fd.append("active", String(active));
       fd.append("has_variants", String(hasRealVariants));
+
+      // ── Bloques modulares ───────────────────────────────────────────────
+      // El builder pinta un <input type="hidden" name="product_sections_json" />
+      // dentro de este mismo <form>. Como construimos el FormData a mano (no
+      // desde el form DOM, para poder mezclar Files manualmente), tenemos que
+      // leer su valor explícitamente.
+      const formEl = e.currentTarget as HTMLFormElement;
+      const sectionsInput = formEl.querySelector<HTMLInputElement>(
+        'input[name="product_sections_json"]'
+      );
+      fd.append("product_sections_json", sectionsInput?.value ?? "[]");
       fd.append("variants", JSON.stringify(hasRealVariants ? [] : variants));
       fd.append(
         "options_json",
@@ -508,7 +521,17 @@ export function EditProductoForm({
                 onChange={setDescription}
                 placeholder="Describe el producto: materiales, dimensiones, instrucciones de uso..."
               />
+              <p className="mt-2 text-xs text-zinc-400">
+                Si agregas bloques modulares más abajo, estos reemplazan a la
+                descripción HTML en la ficha pública.
+              </p>
             </Card>
+
+            {/* Bloques modulares (Fase 2A) */}
+            <ProductSectionsBuilder
+              initialSections={product.product_sections ?? []}
+              hiddenInputName="product_sections_json"
+            />
 
             {/* Images */}
             <Card title="Imágenes">

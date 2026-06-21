@@ -29,6 +29,7 @@ function makeProduct(p: Partial<Product> & Pick<Product, "id" | "slug" | "name" 
     discount_max_percent: p.discount_max_percent ?? 0,
     discount_steps: (Array.isArray(p.discount_steps) ? p.discount_steps : []) as Product["discount_steps"],
     discount_label: p.discount_label ?? null,
+    product_sections: p.product_sections ?? ([] as Product["product_sections"]),
   };
 }
 
