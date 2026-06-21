@@ -409,7 +409,7 @@ export async function POST(request: NextRequest) {
       amount: String(Math.round(total)),
       email: customer.email,
       urlConfirmation: `${siteUrl}/api/flow/webhook`,
-      urlReturn: `${siteUrl}/checkout/confirmacion`,
+      urlReturn: `${siteUrl}/checkout/confirmacion?order=${orderNumberLive}`,
       commerceOrder,
     };
     params.s = sign(params, FLOW_SECRET_KEY);
@@ -422,7 +422,7 @@ export async function POST(request: NextRequest) {
 
     const flowData = await flowRes.json();
 
-    if (!flowRes.ok || flowData.code !== 200) {
+    if (!flowRes.ok || !flowData.url || !flowData.token) {
       console.error("Flow error:", flowData);
       return NextResponse.json(
         { error: flowData.message ?? "Error al crear la orden en Flow" },
