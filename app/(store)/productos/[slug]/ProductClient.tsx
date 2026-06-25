@@ -12,10 +12,6 @@ import {
   ChevronRight,
   Minus,
   Plus,
-  Truck,
-  MessageCircle,
-  Gift,
-  ShieldCheck,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useCartStore } from "@/lib/cart/store";
@@ -26,16 +22,7 @@ import { Badge } from "@/components/ui/Badge";
 import { toast } from "@/components/ui/Toast";
 import { StickyAddToCart } from "@/components/store/StickyAddToCart";
 import { TrustBadges } from "@/components/store/TrustBadges";
-import { ProductTieredDiscount } from "@/components/store/ProductTieredDiscount";
 import { normalizeProductCategory } from "@/lib/product/categories";
-import {
-  getApplicableProductDiscount,
-  getDiscountedUnitPrice,
-  getNextDiscountStep,
-  normalizeDiscountSteps,
-  formatDiscountTierMinQtyLabel,
-  isLastDiscountTier,
-} from "@/lib/discounts";
 import type { Database, Product, Review } from "@/lib/supabase/types";
 import type { ProductUpsellSuggestion } from "@/lib/product/upsell";
 import {
@@ -336,56 +323,6 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
     : 0;
   const savedAmount = hasOffer ? displayCompareAt! - displayPrice : 0;
 
-  const volumeDiscountInput = useMemo(
-    () => ({
-      price: displayPrice,
-      discount_enabled: product.discount_enabled,
-      discount_max_percent: product.discount_max_percent,
-      discount_steps: product.discount_steps,
-      discount_label: product.discount_label,
-    }),
-    [
-      displayPrice,
-      product.discount_enabled,
-      product.discount_max_percent,
-      product.discount_steps,
-      product.discount_label,
-    ]
-  );
-
-  const effectiveUnitPrice = useMemo(
-    () => getDiscountedUnitPrice(volumeDiscountInput, qty, displayPrice),
-    [volumeDiscountInput, qty, displayPrice]
-  );
-
-  const appliedVolumePct = useMemo(
-    () => getApplicableProductDiscount(volumeDiscountInput, qty),
-    [volumeDiscountInput, qty]
-  );
-
-  const nextVolumeStep = useMemo(
-    () => getNextDiscountStep(volumeDiscountInput, qty),
-    [volumeDiscountInput, qty]
-  );
-
-  const lineVolumeSavings = Math.max(
-    0,
-    Math.round((displayPrice - effectiveUnitPrice) * qty)
-  );
-  const maxVolCap = Math.min(100, Math.max(0, Number(product.discount_max_percent) || 0));
-  const normalizedVolumeSteps = useMemo(
-    () => normalizeDiscountSteps(product.discount_steps),
-    [product.discount_steps]
-  );
-  const hasVolumeSteps = normalizedVolumeSteps.length > 0;
-  const showVolumePromo = product.discount_enabled === true && hasVolumeSteps;
-  const showQty1VolumeHint = qty === 1 && showVolumePromo;
-  const showVolumeEconomics = qty >= 2 && showVolumePromo;
-
-  const nextVolumeStepIsLast = Boolean(
-    nextVolumeStep && isLastDiscountTier(normalizedVolumeSteps, nextVolumeStep.minQty)
-  );
-
   const variantGroups = product.variants
     ? (product.variants as Record<string, string[]>)
     : null;
@@ -427,12 +364,6 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
       : displayStock <= 30
         ? "⚡ Alta demanda hoy"
         : null;
-  const benefits = [
-    { icon: Truck, label: "Envío disponible" },
-    { icon: MessageCircle, label: "Puedes pedir por WhatsApp" },
-    { icon: Gift, label: "Ofertas sorpresa en el carrito" },
-    { icon: ShieldCheck, label: "Pago seguro con Flow" },
-  ];
   const whyBuyCards = [
     {
       title: "Descuentos automáticos",
@@ -656,18 +587,13 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             <div className="flex flex-wrap items-baseline gap-3">
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-3xl font-bold tabular-nums text-[var(--color-text)]">
-                  {formatPrice(showQty1VolumeHint ? displayPrice : effectiveUnitPrice)}
+                  {formatPrice(displayPrice)}
                 </span>
                 <span className="text-xs text-[var(--color-text-muted)]">
                   {qty === 1 ? "1 unidad" : `${qty} unidades`} ·{" "}
-                  {formatPrice(showQty1VolumeHint ? displayPrice : effectiveUnitPrice)} c/u
+                  {formatPrice(displayPrice)} c/u
                 </span>
               </div>
-              {!showQty1VolumeHint && effectiveUnitPrice < displayPrice && (
-                <span className="text-lg text-[var(--color-text-muted)] line-through tabular-nums">
-                  {formatPrice(displayPrice)}
-                </span>
-              )}
               {hasOffer && (
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span className="text-lg text-[var(--color-text-muted)] line-through tabular-nums">
@@ -679,49 +605,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
                 </div>
               )}
             </div>
-            {showQty1VolumeHint ? (
-              <p className="text-sm font-medium text-amber-900/95">
-                🔥 Agrega más unidades y desbloquea descuentos
-              </p>
-            ) : null}
-            {showVolumeEconomics && appliedVolumePct > 0 ? (
-              <p className="text-sm font-semibold text-emerald-800">
-                Descuento por cantidad actual: {appliedVolumePct}%
-              </p>
-            ) : null}
-            {showVolumeEconomics && lineVolumeSavings > 0 ? (
-              <p className="text-sm font-semibold text-emerald-700">
-                Ahorro extra por cantidad: {formatPrice(lineVolumeSavings)}
-              </p>
-            ) : null}
-            {showVolumeEconomics && nextVolumeStep ? (
-              <p className="text-sm text-[var(--color-text-muted)]">
-                Agrega {Math.max(0, nextVolumeStep.minQty - qty)} más y desbloquea{" "}
-                {Math.min(nextVolumeStep.percent, maxVolCap)}% OFF
-                {nextVolumeStepIsLast
-                  ? ` (${formatDiscountTierMinQtyLabel(nextVolumeStep.minQty, { isLastTier: true })})`
-                  : ""}
-              </p>
-            ) : null}
-            {showVolumeEconomics && !nextVolumeStep && appliedVolumePct > 0 ? (
-              <p className="text-sm font-medium text-emerald-800/90">
-                Descuento por cantidad máximo para esta cantidad
-                {normalizedVolumeSteps.length > 0
-                  ? ` (${formatDiscountTierMinQtyLabel(
-                      normalizedVolumeSteps[normalizedVolumeSteps.length - 1].minQty,
-                      { isLastTier: true }
-                    )})`
-                  : ""}
-              </p>
-            ) : null}
           </div>
-          <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm text-[var(--color-text)]">
-            <p>🔥 Alta demanda hoy</p>
-            <p>🚚 Envío rápido desde Chile</p>
-            <p>💳 Paga seguro con Flow</p>
-          </div>
-
-
           {/* Variants */}
           {hasRealVariants ? (
             <div id="pdp-variants" className="flex flex-col gap-2 scroll-mt-24 rounded-[var(--radius-md)] transition-shadow duration-300">
@@ -820,15 +704,6 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             </div>
           </div>
 
-          <ProductTieredDiscount
-            unitPrice={displayPrice}
-            quantity={qty}
-            discount_enabled={product.discount_enabled}
-            discount_max_percent={product.discount_max_percent}
-            discount_steps={product.discount_steps}
-            discount_label={product.discount_label}
-          />
-
           {/* Main CTA */}
           <Button
             ref={mainCTARef}
@@ -839,28 +714,8 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             onClick={handleAdd}
             className="mt-1"
           >
-            {displayStock === 0
-              ? "Agotado"
-              : hasOffer
-                ? "Agregar y desbloquear ofertas"
-                : "Agregar al carrito"}
+            {displayStock === 0 ? "Agotado" : "Agregar al carrito"}
           </Button>
-          <p className="-mt-1 text-center text-xs font-medium text-[var(--color-text-muted)] md:hidden">
-            Compra protegida • WhatsApp ⚡
-          </p>
-          <p className="-mt-1 hidden text-center text-xs font-medium text-[var(--color-text-muted)] md:block">
-            Compra protegida • Soporte por WhatsApp ⚡
-          </p>
-          <div className="rounded-[var(--radius-md)] border border-amber-200 bg-amber-50/70 px-3.5 py-3">
-            <p className="text-sm font-bold text-amber-900">😺 Haz feliz a tu gato hoy</p>
-            <p className="mt-1 text-xs leading-relaxed text-amber-800 line-clamp-2 md:hidden">
-              Menos olor y limpieza. Más tranquilidad desde el primer uso.
-            </p>
-            <p className="mt-1 hidden text-xs leading-relaxed text-amber-800 md:block">
-              Menos olor, menos limpieza y más tranquilidad para ti. Resultados que se notan desde el
-              primer uso.
-            </p>
-          </div>
           {urgencyMessage && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -970,42 +825,6 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
             <p className="mt-1 text-sm text-amber-800">
               Menos olor, menos limpieza, más tranquilidad para ti.
             </p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.45, ease: "easeOut" }}
-            className="mb-9 rounded-[var(--radius-lg)] border border-zinc-200 bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.04)]"
-          >
-            <div className="mb-2 flex items-center justify-between px-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-zinc-600">
-                Beneficios de tu compra
-              </p>
-              <span className="h-px w-16 bg-zinc-200" />
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {benefits.map(({ icon: Icon, label }) => (
-                <motion.div
-                  key={label}
-                  initial={{ opacity: 0, y: 10, scale: 0.99 }}
-                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.32, ease: "easeOut" }}
-                  whileHover={{ y: -2 }}
-                  className="group flex items-center gap-2.5 rounded-[var(--radius-md)] border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-800 transition-colors hover:border-zinc-300"
-                >
-                  <motion.span
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-white shadow-sm"
-                    whileHover={{ scale: 1.08, rotate: -4 }}
-                    transition={{ type: "spring", stiffness: 280, damping: 18 }}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </motion.span>
-                  <span className="leading-snug">{label}</span>
-                </motion.div>
-              ))}
-            </div>
           </motion.div>
 
           <motion.h2

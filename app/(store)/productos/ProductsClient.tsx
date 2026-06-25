@@ -64,12 +64,12 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
   // ── Loading skeleton (before hydration) ──────────────────────────────────────
   if (!mounted) {
     return (
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-3 py-10 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col gap-2">
           <div className="h-9 w-64 animate-pulse rounded-lg bg-[var(--color-border)]" />
           <div className="h-4 w-24 animate-pulse rounded bg-[var(--color-border)]" />
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <ProductCardSkeleton key={i} />
           ))}
@@ -80,7 +80,7 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
 
   return (
     <>
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-3 py-10 sm:px-6 lg:px-8">
 
         {/* ── Page header + filters ── */}
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -163,7 +163,7 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
             {displayed.map((product, i) => (
               <ProductCard
                 key={product.id}
