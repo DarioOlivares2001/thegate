@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
-export const metadata: Metadata = {
-  title: "Política de Privacidad",
-  description: "Cómo TheGate recopila, usa y protege tus datos personales conforme a la Ley 19.628.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getStoreSettings();
+  return {
+    title: "Política de Privacidad",
+    description: `Cómo ${settings.store_name} recopila, usa y protege tus datos personales conforme a la Ley 19.628.`,
+  };
+}
 
-export default function PoliticaPrivacidadPage() {
+export default async function PoliticaPrivacidadPage() {
+  const settings = await getStoreSettings();
+  const storeName = settings.store_name;
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       <Link
@@ -30,7 +36,7 @@ export default function PoliticaPrivacidadPage() {
         <section className="flex flex-col gap-3">
           <h2 className="font-display text-xl font-bold text-[var(--color-text)]">1. Responsable del tratamiento</h2>
           <p className="text-[var(--color-text-muted)] leading-relaxed">
-            TheGate (en adelante &quot;nosotros&quot; o &quot;la tienda&quot;) es responsable del tratamiento de los datos personales que recopila a través de su sitio web. Operamos conforme a lo dispuesto en la <strong className="text-[var(--color-text)]">Ley 19.628 sobre Protección de la Vida Privada</strong> de la República de Chile.
+            {storeName} (en adelante &quot;nosotros&quot; o &quot;la tienda&quot;) es responsable del tratamiento de los datos personales que recopila a través de su sitio web. Operamos conforme a lo dispuesto en la <strong className="text-[var(--color-text)]">Ley 19.628 sobre Protección de la Vida Privada</strong> de la República de Chile.
           </p>
         </section>
 

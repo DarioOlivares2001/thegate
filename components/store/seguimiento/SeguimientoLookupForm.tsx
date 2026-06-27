@@ -4,9 +4,11 @@ import { Input } from "@/components/ui/Input";
 
 export function SeguimientoLookupForm({
   invalidNumber,
+  showMisPedidosLink,
 }: {
   /** true si había query `order` pero no era un entero &gt; 0 */
   invalidNumber?: boolean;
+  showMisPedidosLink?: boolean;
 }) {
   return (
     <section className="mx-auto w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm sm:p-8">
@@ -37,6 +39,17 @@ export function SeguimientoLookupForm({
           Buscar pedido
         </Button>
       </form>
+
+      {showMisPedidosLink && (
+        <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">
+            ¿Tienes cuenta?{" "}
+            <Link href="/cuenta/pedidos" className="font-medium text-[var(--color-primary)] underline underline-offset-2">
+              Ver mis pedidos
+            </Link>
+          </p>
+        </div>
+      )}
 
       <p className="mt-8 text-center text-sm text-[var(--color-text-muted)]">
         <Link href="/productos" className="font-medium text-[var(--color-primary)] underline underline-offset-2">

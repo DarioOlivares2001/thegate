@@ -11,7 +11,7 @@ type FooterNavLink = {
 const NAV_LINKS: FooterNavLink[] = [
   { label: "Nosotros", href: "/nosotros" },
   { label: "Productos", href: "/productos" },
-  { label: "Seguimiento de pedido", href: "/pedido" },
+  { label: "Seguimiento de pedido", href: "/seguimiento" },
 ];
 
 const PAYMENT_BADGES = [

@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
-export const metadata: Metadata = {
-  title: "Política de Devoluciones",
-  description: "Política de devoluciones y derecho a retracto de TheGate según Ley 19.496.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getStoreSettings();
+  return {
+    title: "Política de Devoluciones",
+    description: `Política de devoluciones y derecho a retracto de ${settings.store_name} según Ley 19.496.`,
+  };
+}
 
 export default function DevolucionesPage() {
   return (

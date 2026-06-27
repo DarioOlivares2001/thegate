@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
-export const metadata: Metadata = {
-  title: "Términos y Condiciones",
-  description: "Términos y condiciones de compra en TheGate. Precios en CLP, despacho a todo Chile.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getStoreSettings();
+  return {
+    title: "Términos y Condiciones",
+    description: `Términos y condiciones de compra en ${settings.store_name}. Precios en CLP, despacho a todo Chile.`,
+  };
+}
 
-export default function TerminosPage() {
+export default async function TerminosPage() {
+  const settings = await getStoreSettings();
+  const storeName = settings.store_name;
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       <Link
@@ -30,7 +36,7 @@ export default function TerminosPage() {
         <section className="flex flex-col gap-3">
           <h2 className="font-display text-xl font-bold text-[var(--color-text)]">1. Aceptación de los términos</h2>
           <p className="text-[var(--color-text-muted)] leading-relaxed">
-            Al acceder y realizar una compra en TheGate, aceptas estos Términos y Condiciones en su totalidad. Si no estás de acuerdo con alguna parte, te pedimos que no utilices nuestra plataforma. Estos términos se rigen por la legislación chilena vigente, en particular la <strong className="text-[var(--color-text)]">Ley 19.496 de Protección al Consumidor</strong>.
+            Al acceder y realizar una compra en {storeName}, aceptas estos Términos y Condiciones en su totalidad. Si no estás de acuerdo con alguna parte, te pedimos que no utilices nuestra plataforma. Estos términos se rigen por la legislación chilena vigente, en particular la <strong className="text-[var(--color-text)]">Ley 19.496 de Protección al Consumidor</strong>.
           </p>
         </section>
 
@@ -70,7 +76,7 @@ export default function TerminosPage() {
             <li>Otros medios disponibles en la plataforma Flow.</li>
           </ul>
           <p className="text-[var(--color-text-muted)] leading-relaxed">
-            TheGate no almacena datos de tarjetas ni información financiera sensible.
+            {storeName} no almacena datos de tarjetas ni información financiera sensible.
           </p>
         </section>
 

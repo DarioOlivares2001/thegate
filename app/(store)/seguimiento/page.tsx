@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getPublicOrderByNumber } from "@/lib/orders/getPublicOrderByNumber";
+import { getCuentaSessionFromCookies } from "@/lib/cuenta/session";
 import { SeguimientoLookupForm } from "@/components/store/seguimiento/SeguimientoLookupForm";
 import { SeguimientoNotFound } from "@/components/store/seguimiento/SeguimientoNotFound";
 import { SeguimientoOrderView } from "@/components/store/seguimiento/SeguimientoOrderView";
@@ -25,12 +26,13 @@ export default async function SeguimientoPage({
 }: {
   searchParams: { order?: string | string[] };
 }) {
+  const session = getCuentaSessionFromCookies();
   const parsed = parseOrderQuery(searchParams.order);
 
   if (parsed === "missing") {
     return (
       <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col justify-center px-4 py-12">
-        <SeguimientoLookupForm />
+        <SeguimientoLookupForm showMisPedidosLink={!!session} />
       </main>
     );
   }
@@ -38,7 +40,7 @@ export default async function SeguimientoPage({
   if (parsed === "invalid") {
     return (
       <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col justify-center px-4 py-12">
-        <SeguimientoLookupForm invalidNumber />
+        <SeguimientoLookupForm invalidNumber showMisPedidosLink={!!session} />
       </main>
     );
   }
