@@ -113,12 +113,12 @@ export default async function TerminosPage() {
           <h2 className="font-display text-xl font-bold text-[var(--color-text)]">8. Contacto</h2>
           <p className="text-[var(--color-text-muted)] leading-relaxed">
             Para consultas, escríbenos a{" "}
-            <a href="mailto:hola@thegate.cl" className="text-[var(--color-primary)] hover:underline">
-              hola@thegate.cl
+            <a href={`mailto:${settings.contact_email}`} className="text-[var(--color-primary)] hover:underline">
+              {settings.contact_email}
             </a>{" "}
             o por WhatsApp al{" "}
-            <a href="https://wa.me/56900000000" className="text-[var(--color-primary)] hover:underline" target="_blank" rel="noopener noreferrer">
-              +56 9 0000 0000
+            <a href={`https://wa.me/${settings.support_whatsapp.replace(/[^\d]/g, "")}`} className="text-[var(--color-primary)] hover:underline" target="_blank" rel="noopener noreferrer">
+              {settings.support_whatsapp}
             </a>.
           </p>
         </section>

@@ -11,7 +11,8 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function DevolucionesPage() {
+export default async function DevolucionesPage() {
+  const settings = await getStoreSettings();
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       <Link
@@ -92,12 +93,12 @@ export default function DevolucionesPage() {
           <h2 className="font-display text-xl font-bold text-[var(--color-text)]">6. Contacto para devoluciones</h2>
           <p className="text-[var(--color-text-muted)] leading-relaxed">
             Escríbenos a{" "}
-            <a href="mailto:hola@thegate.cl" className="text-[var(--color-primary)] hover:underline">
-              hola@thegate.cl
+            <a href={`mailto:${settings.contact_email}`} className="text-[var(--color-primary)] hover:underline">
+              {settings.contact_email}
             </a>{" "}
             o por WhatsApp al{" "}
-            <a href="https://wa.me/56900000000" className="text-[var(--color-primary)] hover:underline" target="_blank" rel="noopener noreferrer">
-              +56 9 0000 0000
+            <a href={`https://wa.me/${settings.support_whatsapp.replace(/[^\d]/g, "")}`} className="text-[var(--color-primary)] hover:underline" target="_blank" rel="noopener noreferrer">
+              {settings.support_whatsapp}
             </a>{" "}
             indicando en el asunto &quot;Devolución — Orden #XXXX&quot;. Respondemos en un máximo de 24 horas hábiles.
           </p>

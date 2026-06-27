@@ -43,7 +43,7 @@ export async function sendOrderNotification(payload: OrderNotificationPayload) {
     whatsappNumber: settings.support_whatsapp || "",
   };
 
-  const customerSubject = "Recibimos tu pedido en PonkyBonk 🐾";
+  const customerSubject = `Recibimos tu pedido en ${branding.storeName}`;
   const customerHtml = getOrderCustomerHtml({
     customerName: payload.customerName,
     orderNumber: payload.orderNumber,

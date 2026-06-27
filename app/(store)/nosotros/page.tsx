@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
-export const metadata: Metadata = {
-  title: "Nosotros | PonkyBonk",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getStoreSettings();
+  return { title: `Nosotros | ${settings.store_name}` };
+}
 
-export default function NosotrosPage() {
+export default async function NosotrosPage() {
+  const settings = await getStoreSettings();
   return (
     <main className="bg-[var(--color-background)]">
       <section className="relative overflow-hidden border-b border-[var(--color-border)]">
@@ -123,7 +126,7 @@ export default function NosotrosPage() {
                 Ver productos
               </Button>
             </Link>
-            <Link href="https://wa.me/56987075445" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+            <Link href={`https://wa.me/${settings.support_whatsapp.replace(/[^\d]/g, "")}`} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
               <Button size="lg" variant="secondary" fullWidth className="gap-2">
                 <span aria-hidden>💬</span>
                 Hablar por WhatsApp

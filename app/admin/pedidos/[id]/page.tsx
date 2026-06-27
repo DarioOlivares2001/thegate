@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OrderDetail } from "./OrderDetail";
+import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
 export const metadata: Metadata = { title: "Detalle de pedido — Admin" };
 
@@ -24,7 +25,7 @@ export default async function PedidoDetailPage({
 }: {
   params: { id: string };
 }) {
-  const order = await getOrder(params.id);
+  const [order, settings] = await Promise.all([getOrder(params.id), getStoreSettings()]);
   if (!order) notFound();
-  return <OrderDetail order={order} />;
+  return <OrderDetail order={order} storeName={settings.store_name} />;
 }

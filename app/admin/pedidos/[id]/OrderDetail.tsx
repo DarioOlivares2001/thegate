@@ -96,7 +96,7 @@ function buildMapsQuery(addr: Record<string, unknown>): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function OrderDetail({ order }: { order: any }) {
+export function OrderDetail({ order, storeName }: { order: any; storeName: string }) {
   const [currentStatus, setCurrentStatus] = useState<string>(() => normalizeOrderStatusKey(order.status));
   const [status, setStatus] = useState<string>(() => normalizeOrderStatusKey(order.status));
   const [saving, setSaving] = useState(false);
@@ -108,7 +108,7 @@ export function OrderDetail({ order }: { order: any }) {
   const telHref = normalizeTelHref(order.customer_phone as string | null | undefined);
   const phoneDigits = normalizePhoneDigits(order.customer_phone as string | null | undefined);
   const customerName = String(order.customer_name ?? "").trim() || "cliente";
-  const whatsappMessage = `Hola ${customerName}, soy de PonkyBonk.\n\nTe escribo por tu pedido #${order.order_number}.\n\nYa lo estamos preparando.\n\n¿Estarás disponible para la entrega hoy?`;
+  const whatsappMessage = `Hola ${customerName}, soy de ${storeName}.\n\nTe escribo por tu pedido #${order.order_number}.\n\nYa lo estamos preparando.\n\n¿Estarás disponible para la entrega hoy?`;
   const whatsappHref =
     phoneDigits.length > 0
       ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(whatsappMessage)}`

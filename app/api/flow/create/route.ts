@@ -5,6 +5,7 @@ import { upsertClienteFromOrder } from "@/lib/clientes/upsertClienteFromOrder";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderNotification } from "@/lib/email/sendOrderNotification";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 import {
   recalculateCheckoutOrder,
   type RecalculatedOrderLine,
@@ -146,6 +147,7 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient();
+    const settings = await getStoreSettings();
     const priced = await recalculateCheckoutOrder(admin, body.items);
     if (!priced.ok) {
       return NextResponse.json({ error: priced.error }, { status: priced.status });
@@ -404,7 +406,7 @@ export async function POST(request: NextRequest) {
     const siteUrl = getPublicSiteUrl();
     const params: Record<string, string> = {
       apiKey: FLOW_API_KEY,
-      subject: `Compra TheGate — ${commerceOrder}`,
+      subject: `${settings.store_name} — ${commerceOrder}`,
       currency: "CLP",
       amount: String(Math.round(total)),
       email: customer.email,

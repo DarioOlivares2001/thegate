@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Plus, Minus, ShoppingBag, ArrowRight, MessageCircle } from "lucide-react";
+import { X, Plus, Minus, ShoppingBag, MessageCircle } from "lucide-react";
 import { useCartStore, cartItemToDiscountInput, cartItemNeedsVariantFix, type CartItem } from "@/lib/cart/store";
 import { formatPrice } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
@@ -82,6 +82,7 @@ type CartDrawerProps = {
 
 export function CartDrawer({
   whatsappPhone = "",
+  enableWhatsappCheckout = false,
 }: CartDrawerProps) {
   const { isOpen, closeDrawer, items, remove, updateQuantity, add } =
     useCartStore();
@@ -673,13 +674,12 @@ export function CartDrawer({
                   )}
                   <div className="pt-1" />
                   <Link href="/checkout" onClick={closeDrawer}>
-                    <Button fullWidth size="lg" className="gap-2">
-                      Finalizar compra con beneficios →
-                      <ArrowRight className="h-4 w-4" />
+                    <Button fullWidth size="lg">
+                      Finalizar compra
                     </Button>
                   </Link>
 
-                  {whatsappOrderUrl && (
+                  {enableWhatsappCheckout && whatsappOrderUrl && (
                     <div className="space-y-1.5">
                       <a
                         href={whatsappOrderUrl}
