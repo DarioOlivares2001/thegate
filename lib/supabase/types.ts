@@ -69,7 +69,7 @@ export interface Database {
         Row: {
           id: string;
           order_number: number;
-          status: "pending" | "paid" | "shipped" | "delivered" | "cancelled";
+          status: "awaiting_payment" | "pending" | "paid" | "preparing" | "shipped" | "delivered" | "cancelled";
           customer_name: string;
           customer_email: string;
           customer_phone: string | null;

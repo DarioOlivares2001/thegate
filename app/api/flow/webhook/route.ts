@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
     if (!orderErr && !orderRow && commerceOrder.startsWith("TG-")) {
       const legacyNum = Number(commerceOrder.slice(3));
       if (Number.isFinite(legacyNum) && legacyNum > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ({ data: orderRow, error: orderErr } = await (admin as any)
           .from("orders")
           .select("id, status, stock_discounted")
