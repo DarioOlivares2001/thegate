@@ -4,17 +4,25 @@ import { Input } from "@/components/ui/Input";
 
 export function SeguimientoLookupForm({
   invalidNumber,
+  requiresEmail = false,
+  prefillOrder,
   showMisPedidosLink,
 }: {
-  /** true si había query `order` pero no era un entero &gt; 0 */
+  /** true si había query `order` pero no era un entero > 0 */
   invalidNumber?: boolean;
+  /** Sin sesión activa: pedir email además del número de orden */
+  requiresEmail?: boolean;
+  /** Pre-carga el número de orden cuando el usuario ya lo envió pero faltaba el email */
+  prefillOrder?: number;
   showMisPedidosLink?: boolean;
 }) {
   return (
     <section className="mx-auto w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm sm:p-8">
       <h1 className="font-display text-2xl font-bold text-[var(--color-text)]">Seguimiento de pedido</h1>
       <p className="mt-2 text-sm leading-relaxed text-[var(--color-text-muted)]">
-        Ingresa el número que recibiste por correo al confirmar tu compra para ver el estado y los detalles.
+        {requiresEmail
+          ? "Ingresa el número de pedido y el email con que compraste para ver el estado."
+          : "Ingresa el número que recibiste por correo al confirmar tu compra para ver el estado y los detalles."}
       </p>
 
       <form method="get" action="/seguimiento" className="mt-8 flex flex-col gap-4">
@@ -26,10 +34,22 @@ export function SeguimientoLookupForm({
           pattern="[0-9]+"
           autoComplete="off"
           placeholder="Ej: 34"
-          label="Ingresa tu número de pedido"
+          label="Número de pedido"
+          defaultValue={prefillOrder ?? ""}
           required
           className="font-mono"
         />
+        {requiresEmail && (
+          <Input
+            id="seguimiento-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            placeholder="tu@email.com"
+            label="Email con que compraste"
+            required
+          />
+        )}
         {invalidNumber ? (
           <p className="text-xs text-[var(--color-error)]" role="alert">
             Escribe un número de pedido válido (solo dígitos, sin espacios).

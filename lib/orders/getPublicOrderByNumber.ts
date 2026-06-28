@@ -14,10 +14,19 @@ export type PublicOrderTracking = {
   created_at: string;
 };
 
+/**
+ * Busca un pedido por número y valida que pertenezca al email indicado.
+ * Siempre requiere ownerEmail — nunca devuelve un pedido sin verificar propiedad.
+ * Devuelve null tanto si el pedido no existe como si el email no coincide
+ * (mensaje genérico para no filtrar información).
+ */
 export async function getPublicOrderByNumber(
-  orderNumber: number
+  orderNumber: number,
+  ownerEmail: string
 ): Promise<PublicOrderTracking | null> {
   if (!Number.isFinite(orderNumber) || orderNumber < 1) return null;
+  const normalizedEmail = ownerEmail.trim().toLowerCase();
+  if (!normalizedEmail) return null;
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,6 +37,7 @@ export async function getPublicOrderByNumber(
         "order_number, status, customer_name, customer_email, customer_phone, items, subtotal, shipping_cost, total, created_at"
       )
       .eq("order_number", orderNumber)
+      .ilike("customer_email", normalizedEmail)
       .maybeSingle();
 
     if (error) {
