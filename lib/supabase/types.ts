@@ -213,6 +213,7 @@ export interface Database {
           hero_banner_mobile_url: string | null;
           hero_overlay_opacity: number | null;
           hero_overlay_mode: string | null;
+          order_number_offset: number;
           created_at: string;
           updated_at: string;
         };

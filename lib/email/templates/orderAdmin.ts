@@ -16,6 +16,7 @@ type Branding = {
 
 type Payload = {
   orderNumber?: string | number | null;
+  displayCode?: string | null;
   customerName?: string | null;
   customerEmail?: string | null;
   customerPhone?: string | null;
@@ -98,7 +99,7 @@ export function getOrderAdminHtml(payload: Payload) {
             </tr>
             <tr>
               <td style="padding:20px;">
-                <p style="margin:0 0 10px;"><strong>Pedido:</strong> #${escapeHtml(payload.orderNumber || "-")}</p>
+                <p style="margin:0 0 10px;"><strong>Pedido:</strong> ${escapeHtml(payload.displayCode || String(payload.orderNumber ?? "-"))}</p>
                 <p style="margin:0 0 6px;"><strong>Cliente:</strong> ${escapeHtml(payload.customerName || "-")}</p>
                 <p style="margin:0 0 6px;"><strong>Email:</strong> ${escapeHtml(payload.customerEmail || "-")}</p>
                 <p style="margin:0 0 6px;padding:10px;background:#faf5ff;border-radius:8px;"><strong>Teléfono:</strong> ${escapeHtml(payload.customerPhone || "-")}</p>

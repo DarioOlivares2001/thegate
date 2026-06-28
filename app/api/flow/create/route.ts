@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderNotification } from "@/lib/email/sendOrderNotification";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
+import { generateDisplayCode } from "@/lib/orders/generateDisplayCode";
 import {
   recalculateCheckoutOrder,
   type RecalculatedOrderLine,
@@ -45,7 +46,7 @@ function buildOrderInsertPayload(
   subtotal: number,
   shippingCost: number,
   total: number,
-  status: "pending" | "paid"
+  status: "awaiting_payment" | "pending" | "paid"
 ): Database["public"]["Tables"]["orders"]["Insert"] {
   const referencia =
     typeof customer.referencia === "string" ? customer.referencia.trim() : "";
@@ -189,7 +190,7 @@ export async function POST(request: NextRequest) {
       subtotal,
       shippingCost,
       total,
-      "pending"
+      "awaiting_payment"
     );
 
     // ── Mock mode ─────────────────────────────────────────────────────────────
@@ -261,7 +262,13 @@ export async function POST(request: NextRequest) {
         });
       }
       const mockToken = `MOCK-${orderNumber}`;
-      console.info(`[Flow mock] Orden #${orderNumber} creada con status 'paid'`);
+      const displayCode = generateDisplayCode(orderNumber, settings.order_number_offset);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin as any)
+        .from("orders")
+        .update({ display_code: displayCode })
+        .eq("id", orderId);
+      console.info(`[Flow mock] Orden #${orderNumber} (${displayCode}) creada con status 'paid'`);
       logPersistedOrderAfterInsert({
         order_number: orderNumber,
         subtotal: mockPayload.subtotal,
@@ -277,7 +284,7 @@ export async function POST(request: NextRequest) {
       });
 
       try {
-        console.log("[email] trigger notificación pedido (mock)");
+        console.log("[email] trigger notificación mock (admin + cliente)");
         await sendOrderNotification({
           orderNumber,
           orderStatus: "paid",
@@ -300,10 +307,10 @@ export async function POST(request: NextRequest) {
 
       const siteUrl = getPublicSiteUrl();
       return NextResponse.json({
-        redirectUrl: `${siteUrl}/checkout/confirmacion?order=${orderNumber}&token=${mockToken}&mock=1`,
+        redirectUrl: `${siteUrl}/checkout/confirmacion?order=${orderNumber}&display=${encodeURIComponent(displayCode)}&token=${mockToken}&mock=1`,
         token: mockToken,
         flowOrder: 0,
-        commerceOrder: `TG-${orderNumber}`,
+        commerceOrder: displayCode,
       });
     }
 
@@ -362,35 +369,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const commerceOrder = `TG-${orderNumberLive}`;
+    const displayCodeLive = generateDisplayCode(orderNumberLive, settings.order_number_offset);
+    const commerceOrder = displayCodeLive;
     console.log("[order-created]", {
       mode: "live",
       orderNumber: orderNumberLive,
       status: "pending",
       customerEmail: customer.email,
     });
-
-    try {
-      console.log("[email] trigger notificación pedido (live)");
-      await sendOrderNotification({
-        orderNumber: orderNumberLive,
-        orderStatus: "pending",
-        customerName: customer.name,
-        customerEmail: customer.email,
-        customerPhone: customer.phone ?? null,
-        shippingAddress: {
-          direccion: customer.address,
-          ciudad: customer.city,
-          region: customer.region,
-        },
-        items,
-        subtotal,
-        shippingCost,
-        total,
-      });
-    } catch (emailError) {
-      console.error("[email-error] Falló notificación de pedido:", emailError);
-    }
 
     if (!FLOW_API_KEY || !FLOW_SECRET_KEY) {
       return NextResponse.json(
@@ -411,7 +397,7 @@ export async function POST(request: NextRequest) {
       amount: String(Math.round(total)),
       email: customer.email,
       urlConfirmation: `${siteUrl}/api/flow/webhook`,
-      urlReturn: `${siteUrl}/checkout/confirmacion?order=${orderNumberLive}`,
+      urlReturn: `${siteUrl}/checkout/confirmacion?order=${orderNumberLive}&display=${encodeURIComponent(displayCodeLive)}`,
       commerceOrder,
     };
     params.s = sign(params, FLOW_SECRET_KEY);
@@ -439,6 +425,7 @@ export async function POST(request: NextRequest) {
         .update({
           flow_token: flowData.token,
           flow_order: String(flowData.flowOrder),
+          display_code: displayCodeLive,
         })
         .eq("order_number", orderNumberLive);
     } catch {

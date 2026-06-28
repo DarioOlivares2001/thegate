@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { confirmPaidOrderAndDecrementStock } from "@/lib/orders/confirmPaidAndDecrementStock";
 import { revalidateAfterStockChange } from "@/lib/orders/revalidateAfterStockChange";
+import { sendOrderNotification } from "@/lib/email/sendOrderNotification";
 
 const FLOW_API_URL = process.env.FLOW_API_URL ?? "https://sandbox.flow.cl/api";
 const FLOW_API_KEY = process.env.FLOW_API_KEY ?? "";
@@ -19,13 +20,6 @@ function sign(params: Record<string, string>, secret: string): string {
   return crypto.createHmac("sha256", secret).update(message).digest("hex");
 }
 
-function parseOrderNumberFromCommerceOrder(commerceOrder: string): number | null {
-  const raw = String(commerceOrder ?? "").trim();
-  if (!raw) return null;
-  const cleaned = raw.startsWith("TG-") ? raw.slice(3) : raw;
-  const n = Number(cleaned);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
 
 /**
  * Webhook de confirmación de Flow.
@@ -77,32 +71,45 @@ export async function POST(request: NextRequest) {
 
     const statusCode = Number(obj.status);
     const commerceOrder = String(obj.commerceOrder ?? "").trim();
-    const orderNumber = parseOrderNumberFromCommerceOrder(commerceOrder);
 
-    if (!orderNumber) {
-      console.warn("[flow-webhook] commerceOrder inválido", { commerceOrder });
+    if (!commerceOrder) {
+      console.warn("[flow-webhook] commerceOrder vacío");
       return NextResponse.json({ received: true }, { status: 200 });
     }
 
     const admin = createAdminClient();
 
     // ── 2. Buscar la orden ──────────────────────────────────────────────────
+    // Busca por display_code (formato nuevo SO...).
+    // Fallback a order_number parseado desde "TG-X" para órdenes en vuelo
+    // creadas con el formato anterior. Eliminar fallback cuando no queden pendientes viejas.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: orderRow, error: orderErr } = await (admin as any)
+    let { data: orderRow, error: orderErr } = await (admin as any)
       .from("orders")
       .select("id, status, stock_discounted")
-      .eq("order_number", orderNumber)
+      .eq("display_code", commerceOrder)
       .maybeSingle();
+
+    if (!orderErr && !orderRow && commerceOrder.startsWith("TG-")) {
+      const legacyNum = Number(commerceOrder.slice(3));
+      if (Number.isFinite(legacyNum) && legacyNum > 0) {
+        ({ data: orderRow, error: orderErr } = await (admin as any)
+          .from("orders")
+          .select("id, status, stock_discounted")
+          .eq("order_number", legacyNum)
+          .maybeSingle());
+      }
+    }
 
     if (orderErr) {
       console.error("[flow-webhook] error consultando orden", {
-        orderNumber,
+        commerceOrder,
         error: orderErr.message,
       });
       return NextResponse.json({ received: true }, { status: 200 });
     }
     if (!orderRow) {
-      console.warn("[flow-webhook] orden no encontrada", { orderNumber });
+      console.warn("[flow-webhook] orden no encontrada", { commerceOrder });
       return NextResponse.json({ received: true }, { status: 200 });
     }
 
@@ -113,7 +120,7 @@ export async function POST(request: NextRequest) {
     //  4 → cancelled
     if (statusCode !== 2) {
       console.log("[flow-webhook] estado no-paid, no se descuenta stock", {
-        orderNumber,
+        commerceOrder,
         statusCode,
       });
       return NextResponse.json({ received: true }, { status: 200 });
@@ -123,7 +130,7 @@ export async function POST(request: NextRequest) {
     const stockRes = await confirmPaidOrderAndDecrementStock(admin, orderRow.id as string);
     if (!stockRes.ok) {
       console.error("[flow-webhook] error descontando stock", {
-        orderNumber,
+        commerceOrder,
         error: stockRes.error,
         code: stockRes.code,
       });
@@ -131,11 +138,47 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[flow-webhook] orden confirmada", {
-      orderNumber,
+      commerceOrder,
       alreadyDiscounted: stockRes.alreadyDiscounted,
       decrementedLines: stockRes.decrementedLines,
       finalStatus: stockRes.finalStatus,
     });
+
+    // Emails admin + cliente — solo en el primer webhook de pago (idempotente).
+    if (!stockRes.alreadyDiscounted) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: fullOrder } = await (admin as any)
+          .from("orders")
+          .select(
+            "order_number, customer_name, customer_email, customer_phone, items, subtotal, shipping_cost, total, shipping_address"
+          )
+          .eq("id", orderRow.id)
+          .single();
+
+        if (fullOrder) {
+          const addr = (fullOrder.shipping_address ?? {}) as Record<string, string>;
+          await sendOrderNotification({
+            orderNumber: fullOrder.order_number,
+            orderStatus: "paid",
+            customerName: fullOrder.customer_name,
+            customerEmail: fullOrder.customer_email,
+            customerPhone: fullOrder.customer_phone ?? null,
+            shippingAddress: {
+              direccion: addr.direccion ?? "",
+              ciudad: addr.ciudad ?? "",
+              region: addr.region ?? "",
+            },
+            items: Array.isArray(fullOrder.items) ? fullOrder.items : [],
+            subtotal: fullOrder.subtotal,
+            shippingCost: fullOrder.shipping_cost,
+            total: fullOrder.total,
+          });
+        }
+      } catch (emailError) {
+        console.error("[flow-webhook] error enviando emails de confirmación:", emailError);
+      }
+    }
 
     // Sólo invalidar caches cuando hubo descuento real (evita re-invalidar
     // ante webhooks duplicados que entran al early-return idempotente).

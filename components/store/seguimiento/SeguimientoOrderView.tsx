@@ -43,7 +43,7 @@ export function SeguimientoOrderView({ order }: { order: PublicOrderTracking }) 
             Pedido
           </p>
           <h1 className="font-display text-2xl font-bold text-[var(--color-text)] sm:text-3xl">
-            #{order.order_number}
+            {order.display_code ?? `#${order.order_number}`}
           </h1>
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">{created}</p>
         </div>

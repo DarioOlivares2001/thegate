@@ -39,6 +39,8 @@ export interface StoreSettingsView {
   hero_overlay_opacity: number;
   /** Pedido por WhatsApp desde el carrito (usa support_whatsapp como número). */
   enable_whatsapp_checkout: boolean;
+  /** Offset que se suma a order_number para generar el display_code (SO + 8 dígitos). */
+  order_number_offset: number;
 }
 
 export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
@@ -78,6 +80,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
   hero_overlay_mode: "manual",
   hero_overlay_opacity: 60,
   enable_whatsapp_checkout: false,
+  order_number_offset: 0,
 };
 
 function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
@@ -131,6 +134,11 @@ function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
     if (value === false || value === "false" || value === "f" || value === "0" || value === 0)
       return false;
     return fallback;
+  };
+  const asNonNegativeInt = (value: unknown, fallback: number): number => {
+    const parsed = typeof value === "number" ? value : parseInt(String(value ?? ""), 10);
+    if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+    return Math.floor(parsed);
   };
 
   return {
@@ -197,6 +205,10 @@ function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
     enable_whatsapp_checkout: asBoolean(
       (row as Record<string, unknown>).enable_whatsapp_checkout,
       DEFAULT_STORE_SETTINGS.enable_whatsapp_checkout
+    ),
+    order_number_offset: asNonNegativeInt(
+      (row as Record<string, unknown>).order_number_offset,
+      DEFAULT_STORE_SETTINGS.order_number_offset
     ),
   };
 }

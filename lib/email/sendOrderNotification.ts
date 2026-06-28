@@ -1,5 +1,6 @@
 import { sendEmail } from "@/lib/email/resend";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
+import { generateDisplayCode } from "@/lib/orders/generateDisplayCode";
 import { getOrderCustomerHtml } from "@/lib/email/templates/orderCustomer";
 import { getOrderAdminHtml } from "@/lib/email/templates/orderAdmin";
 
@@ -12,6 +13,7 @@ type OrderNotificationItem = {
 type OrderNotificationPayload = {
   orderNumber?: number | string | null;
   orderStatus: "pending" | "paid" | "shipped" | "delivered" | "cancelled";
+  only?: "customer" | "admin";
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string | null;
@@ -43,10 +45,16 @@ export async function sendOrderNotification(payload: OrderNotificationPayload) {
     whatsappNumber: settings.support_whatsapp || "",
   };
 
+  const orderNum = Number(payload.orderNumber);
+  const displayCode = Number.isFinite(orderNum) && orderNum > 0
+    ? generateDisplayCode(orderNum, settings.order_number_offset)
+    : null;
+
   const customerSubject = `Recibimos tu pedido en ${branding.storeName}`;
   const customerHtml = getOrderCustomerHtml({
     customerName: payload.customerName,
     orderNumber: payload.orderNumber,
+    displayCode,
     items: payload.items,
     subtotal: payload.subtotal,
     shippingCost: payload.shippingCost,
@@ -60,6 +68,7 @@ export async function sendOrderNotification(payload: OrderNotificationPayload) {
   const adminSubject = "Nuevo pedido recibido";
   const adminHtml = getOrderAdminHtml({
     orderNumber: payload.orderNumber,
+    displayCode,
     customerName: payload.customerName,
     customerEmail: customerTo,
     customerPhone: payload.customerPhone,
@@ -70,26 +79,30 @@ export async function sendOrderNotification(payload: OrderNotificationPayload) {
     branding,
   });
 
-  if (customerTo) {
-    console.log("[order-email-customer] enviando a:", customerTo);
-    try {
-      await sendEmail({ to: customerTo, subject: customerSubject, html: customerHtml });
-    } catch (error) {
-      console.error("[order-email-error] customer", error);
+  if (payload.only !== "admin") {
+    if (customerTo) {
+      console.log("[order-email-customer] enviando a:", customerTo);
+      try {
+        await sendEmail({ to: customerTo, subject: customerSubject, html: customerHtml });
+      } catch (error) {
+        console.error("[order-email-error] customer", error);
+      }
+    } else {
+      console.error("[order-email-error] customer_email faltante para pedido:", payload.orderNumber);
     }
-  } else {
-    console.error("[order-email-error] customer_email faltante para pedido:", payload.orderNumber);
   }
 
-  if (adminTo) {
-    console.log("[order-email-admin] enviando a:", adminTo);
-    try {
-      await sendEmail({ to: adminTo, subject: adminSubject, html: adminHtml });
-    } catch (error) {
-      console.error("[order-email-error] admin", error);
+  if (payload.only !== "customer") {
+    if (adminTo) {
+      console.log("[order-email-admin] enviando a:", adminTo);
+      try {
+        await sendEmail({ to: adminTo, subject: adminSubject, html: adminHtml });
+      } catch (error) {
+        console.error("[order-email-error] admin", error);
+      }
+    } else {
+      console.error("[order-email-error] STORE_CONTACT_EMAIL no configurado.");
     }
-  } else {
-    console.error("[order-email-error] STORE_CONTACT_EMAIL no configurado.");
   }
 }
 

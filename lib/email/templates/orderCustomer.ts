@@ -16,6 +16,7 @@ type Branding = {
 type Payload = {
   customerName?: string | null;
   orderNumber?: string | number | null;
+  displayCode?: string | null;
   items?: OrderItem[];
   subtotal?: number | null;
   shippingCost?: number | null;
@@ -66,7 +67,7 @@ export function getOrderCustomerHtml(payload: Payload) {
   const tiktokUrl = String(payload.branding?.tiktokUrl ?? "").trim();
   const waDigits = normalizeDigits(payload.branding?.whatsappNumber);
   const waText = encodeURIComponent(
-    `Hola, tengo un pedido ${payload.orderNumber ?? ""} y necesito ayuda.`
+    `Hola, tengo un pedido ${payload.displayCode ?? payload.orderNumber ?? ""} y necesito ayuda.`
   );
   const waLink = waDigits ? `https://wa.me/${waDigits}?text=${waText}` : "";
   const readableStatus = statusLabel(payload.orderStatus);
@@ -105,7 +106,7 @@ export function getOrderCustomerHtml(payload: Payload) {
             <tr>
               <td style="padding:20px;">
                 <p style="margin:0 0 10px;">Hola <strong>${escapeHtml(payload.customerName || "cliente")}</strong>,</p>
-                <p style="margin:0 0 14px;">Tu pedido <strong>#${escapeHtml(payload.orderNumber || "-")}</strong> fue recibido correctamente.</p>
+                <p style="margin:0 0 14px;">Tu pedido <strong>${escapeHtml(payload.displayCode || String(payload.orderNumber ?? "-"))}</strong> fue recibido correctamente.</p>
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:14px;">
                   <thead>
                     <tr>

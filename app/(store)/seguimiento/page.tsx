@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getPublicOrderByNumber } from "@/lib/orders/getPublicOrderByNumber";
+import { getPublicOrderByDisplayCode } from "@/lib/orders/getPublicOrderByNumber";
 import { getCuentaSessionFromCookies } from "@/lib/cuenta/session";
 import { SeguimientoLookupForm } from "@/components/store/seguimiento/SeguimientoLookupForm";
 import { SeguimientoNotFound } from "@/components/store/seguimiento/SeguimientoNotFound";
@@ -9,16 +9,16 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Seguimiento de pedido",
-  description: "Consulta el estado de tu pedido con el número de orden.",
+  description: "Consulta el estado de tu pedido con tu código de seguimiento.",
 };
 
-function parseOrderQuery(raw: string | string[] | undefined): "missing" | "invalid" | number {
+function parseOrderQuery(raw: string | string[] | undefined): "missing" | "invalid" | string {
   if (raw == null) return "missing";
   const s = Array.isArray(raw) ? raw[0] : raw;
-  if (s == null || String(s).trim() === "") return "missing";
-  const n = parseInt(String(s).trim(), 10);
-  if (!Number.isFinite(n) || n < 1) return "invalid";
-  return n;
+  const trimmed = (s ?? "").trim().toUpperCase();
+  if (!trimmed) return "missing";
+  if (/^SO\d+$/.test(trimmed)) return trimmed;
+  return "invalid";
 }
 
 function parseEmailQuery(raw: string | string[] | undefined): string | null {
@@ -36,7 +36,7 @@ export default async function SeguimientoPage({
   const session = getCuentaSessionFromCookies();
   const parsed = parseOrderQuery(searchParams.order);
 
-  // ── Número inválido o ausente → mostrar formulario ────────────────────────
+  // ── Código ausente o inválido → mostrar formulario ────────────────────────
   if (parsed === "missing") {
     return (
       <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col justify-center px-4 py-12">
@@ -52,7 +52,7 @@ export default async function SeguimientoPage({
     return (
       <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col justify-center px-4 py-12">
         <SeguimientoLookupForm
-          invalidNumber
+          invalidCode
           requiresEmail={!session}
           showMisPedidosLink={!!session}
         />
@@ -60,15 +60,14 @@ export default async function SeguimientoPage({
     );
   }
 
-  // ── Número válido — verificar propiedad ───────────────────────────────────
+  // ── Código válido — verificar propiedad ───────────────────────────────────
   if (session) {
-    // Sesión activa: usar el email de la sesión directamente, sin pedirlo al usuario
-    const order = await getPublicOrderByNumber(parsed, session.email);
+    const order = await getPublicOrderByDisplayCode(parsed, session.email);
 
     if (!order) {
       return (
         <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col justify-center px-4 py-12">
-          <SeguimientoNotFound orderNumber={parsed} />
+          <SeguimientoNotFound displayCode={parsed} />
         </main>
       );
     }
@@ -84,24 +83,23 @@ export default async function SeguimientoPage({
   const emailParam = parseEmailQuery(searchParams.email);
 
   if (!emailParam) {
-    // Número presente pero email ausente → volver al formulario con número pre-cargado
     return (
       <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col justify-center px-4 py-12">
         <SeguimientoLookupForm
           requiresEmail
-          prefillOrder={parsed}
+          prefillOrderCode={parsed}
           showMisPedidosLink={false}
         />
       </main>
     );
   }
 
-  const order = await getPublicOrderByNumber(parsed, emailParam);
+  const order = await getPublicOrderByDisplayCode(parsed, emailParam);
 
   if (!order) {
     return (
       <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col justify-center px-4 py-12">
-        <SeguimientoNotFound orderNumber={parsed} />
+        <SeguimientoNotFound displayCode={parsed} />
       </main>
     );
   }

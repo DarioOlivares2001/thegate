@@ -122,6 +122,7 @@ export function PedidosClient({ orders, initialFilter }: { orders: any[]; initia
       result = result.filter(
         (o) =>
           String(o.order_number).includes(q) ||
+          (o.display_code ?? "").toLowerCase().includes(q) ||
           (o.customer_email ?? "").toLowerCase().includes(q) ||
           (o.customer_name ?? "").toLowerCase().includes(q)
       );
@@ -176,7 +177,7 @@ export function PedidosClient({ orders, initialFilter }: { orders: any[]; initia
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
-            placeholder="Buscar por # orden o email..."
+            placeholder="Buscar por SO..., email o nombre..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 w-full rounded-lg border border-zinc-200 bg-white pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-zinc-900"
@@ -215,7 +216,7 @@ export function PedidosClient({ orders, initialFilter }: { orders: any[]; initia
                   <tr key={order.id} className="transition-colors hover:bg-zinc-50">
                     <td className="px-5 py-3">
                       <span className="font-mono text-xs font-semibold text-zinc-500">
-                        #{order.order_number}
+                        {order.display_code ?? `#${order.order_number}`}
                       </span>
                     </td>
 

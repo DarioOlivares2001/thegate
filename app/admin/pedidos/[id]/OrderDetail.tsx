@@ -102,13 +102,14 @@ export function OrderDetail({ order, storeName }: { order: any; storeName: strin
   const [saving, setSaving] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
+  const [formattedDate, setFormattedDate] = useState("");
   const currentOrderStatus = currentStatus;
 
   const addr = (order.shipping_address ?? {}) as Record<string, unknown>;
   const telHref = normalizeTelHref(order.customer_phone as string | null | undefined);
   const phoneDigits = normalizePhoneDigits(order.customer_phone as string | null | undefined);
   const customerName = String(order.customer_name ?? "").trim() || "cliente";
-  const whatsappMessage = `Hola ${customerName}, soy de ${storeName}.\n\nTe escribo por tu pedido #${order.order_number}.\n\nYa lo estamos preparando.\n\n¿Estarás disponible para la entrega hoy?`;
+  const whatsappMessage = `Hola ${customerName}, soy de ${storeName}.\n\nTe escribo por tu pedido ${order.display_code ?? `#${order.order_number}`}.\n\nYa lo estamos preparando.\n\n¿Estarás disponible para la entrega hoy?`;
   const whatsappHref =
     phoneDigits.length > 0
       ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(whatsappMessage)}`
@@ -145,6 +146,17 @@ export function OrderDetail({ order, storeName }: { order: any; storeName: strin
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  useEffect(() => {
+    setFormattedDate(
+      new Date(order.created_at).toLocaleDateString("es-CL", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    );
+  }, [order.created_at]);
 
   async function handleCopyPhone() {
     if (!phoneDigits) return;
@@ -191,14 +203,9 @@ export function OrderDetail({ order, storeName }: { order: any; storeName: strin
         </Link>
 
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="font-display text-lg font-bold text-zinc-900">#{order.order_number}</h1>
+          <h1 className="font-display text-lg font-bold text-zinc-900">{order.display_code ?? `#${order.order_number}`}</h1>
           <span className="hidden text-xs text-zinc-400 sm:inline">
-            {new Date(order.created_at).toLocaleDateString("es-CL", {
-              day: "numeric",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {formattedDate}
           </span>
           <span
             className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${

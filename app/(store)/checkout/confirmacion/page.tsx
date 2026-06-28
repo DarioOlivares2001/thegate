@@ -53,6 +53,7 @@ function CheckIcon() {
 function ConfirmationContent() {
   const searchParams = useSearchParams();
   const order = searchParams.get("order");
+  const display = searchParams.get("display") || order;
   const cleared = useRef(false);
   const clear = useCartStore((s) => s.clear);
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
@@ -103,13 +104,13 @@ function ConfirmationContent() {
           ¡Pedido confirmado!
         </h1>
 
-        {order && (
+        {display && (
           <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-3.5">
             <p className="text-xs font-medium uppercase tracking-widest text-[var(--color-text-muted)]">
-              Número de orden
+              Código de pedido
             </p>
-            <p className="mt-0.5 font-display text-xl font-bold text-[var(--color-text)]">
-              {order}
+            <p className="mt-0.5 font-mono font-display text-xl font-bold text-[var(--color-text)]">
+              {display}
             </p>
           </div>
         )}

@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 type CuentaPedido = {
   id: string;
   order_number: number;
+  display_code: string | null;
   created_at: string;
   total: number;
   status: string;
@@ -34,7 +35,7 @@ export default async function CuentaPedidosPage() {
   const admin = createAdminClient() as any;
   const { data, error } = await admin
     .from("orders")
-    .select("id,order_number,created_at,total,status")
+    .select("id,order_number,display_code,created_at,total,status")
     .ilike("customer_email", session.email)
     .order("created_at", { ascending: false });
 
@@ -71,7 +72,7 @@ export default async function CuentaPedidosPage() {
               ) : (
                 pedidos.map((p) => (
                   <tr key={p.id}>
-                    <td className="whitespace-nowrap px-4 py-3 font-medium text-[var(--color-text)]">#{p.order_number}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono font-medium text-[var(--color-text)]">{p.display_code ?? `#${p.order_number}`}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-[var(--color-text-muted)]">{formatDate(p.created_at)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-[var(--color-text)]">
                       {formatPrice(p.total)}
@@ -81,7 +82,7 @@ export default async function CuentaPedidosPage() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       <Link
-                        href={`/seguimiento?order=${encodeURIComponent(String(p.order_number))}`}
+                        href={`/seguimiento?order=${encodeURIComponent(p.display_code ?? String(p.order_number))}`}
                         className="text-sm font-medium text-[var(--color-primary)] hover:opacity-80"
                       >
                         Ver seguimiento

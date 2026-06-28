@@ -12,8 +12,9 @@ async function getOrders() {
     const { data, error } = await (createAdminClient() as any)
       .from("orders")
       .select(
-        "id, order_number, customer_name, customer_email, items, subtotal, shipping_cost, total, status, created_at"
+        "id, order_number, display_code, customer_name, customer_email, items, subtotal, shipping_cost, total, status, created_at"
       )
+      .neq("status", "awaiting_payment")
       .order("created_at", { ascending: false });
 
     if (error) {

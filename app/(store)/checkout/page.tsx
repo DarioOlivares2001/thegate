@@ -384,7 +384,8 @@ export default function CheckoutPage() {
   const [waCfg, setWaCfg] = useState<{
     loaded: boolean;
     supportWhatsapp: string;
-  }>({ loaded: false, supportWhatsapp: "" });
+    enableWhatsappCheckout: boolean;
+  }>({ loaded: false, supportWhatsapp: "", enableWhatsappCheckout: false });
   const checkoutPrefillDone = useRef(false);
   const [cuentaLoggedIn, setCuentaLoggedIn] = useState(false);
   const [saveShippingToCuenta, setSaveShippingToCuenta] = useState(false);
@@ -449,6 +450,7 @@ export default function CheckoutPage() {
         setWaCfg({
           loaded: true,
           supportWhatsapp: typeof data.supportWhatsapp === "string" ? data.supportWhatsapp : "",
+          enableWhatsappCheckout: data.enableWhatsappCheckout === true,
         });
       })
       .catch(() => {
@@ -483,12 +485,12 @@ export default function CheckoutPage() {
   );
 
   const whatsappCheckoutUrl = useMemo(() => {
-    if (!waCfg.loaded || !waDigits || items.length === 0) {
+    if (!waCfg.loaded || !waCfg.enableWhatsappCheckout || !waDigits || items.length === 0) {
       return null;
     }
     const msg = buildWhatsAppOrderMessage(items, total);
     return buildWhatsAppCartUrl(waDigits, msg);
-  }, [waCfg.loaded, waDigits, items, total]);
+  }, [waCfg.loaded, waCfg.enableWhatsappCheckout, waDigits, items, total]);
 
   if (!mounted) {
     return (

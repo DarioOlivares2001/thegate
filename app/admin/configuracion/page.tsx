@@ -61,6 +61,10 @@ async function saveSettingsAction(formData: FormData) {
     if (raw < 0 || raw > 90) return fallback;
     return Math.round(raw / 5) * 5;
   }
+  function readNonNegativeInt(field: keyof StoreSettingsView, fallback: number) {
+    const raw = Math.floor(Number(formData.get(field)));
+    return Number.isFinite(raw) && raw >= 0 ? raw : fallback;
+  }
   function normalizeTikTok(value: string) {
     const raw = value.trim();
     if (!raw) return "";
@@ -171,6 +175,7 @@ async function saveSettingsAction(formData: FormData) {
       DEFAULT_STORE_SETTINGS.hero_overlay_opacity
     ),
     enable_whatsapp_checkout: readBoolean("enable_whatsapp_checkout"),
+    order_number_offset: readNonNegativeInt("order_number_offset", DEFAULT_STORE_SETTINGS.order_number_offset),
   };
   console.log("[hero-config-save] desktop url payload:", payload.hero_banner_desktop_url || "(empty)");
   console.log("[hero-config-save] mobile url payload:", payload.hero_banner_mobile_url || "(empty)");
@@ -517,6 +522,21 @@ export default async function ConfiguracionPage() {
               className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
             />
             Mostrar &quot;Pedir por WhatsApp&quot; en el carrito (cierra el pedido por chat)
+          </label>
+          <label className="flex flex-col gap-1.5 md:col-span-2">
+            <span className="text-sm font-medium text-zinc-700">Offset de número de pedido</span>
+            <input
+              type="number"
+              name="order_number_offset"
+              min="0"
+              step="1"
+              defaultValue={settings.order_number_offset}
+              className="h-10 w-48 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            />
+            <span className="text-xs text-zinc-500">
+              Se suma al número interno para generar el código de pedido visible al cliente (SO + 8 dígitos).
+              Con offset 0, el pedido #1 → <code>SO00000001</code>. Con offset 1000000 → <code>SO01000001</code>.
+            </span>
           </label>
           <Field
             label="Instagram URL"
