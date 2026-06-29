@@ -4,13 +4,17 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { MessageCircle } from "lucide-react";
 import { useCartStore } from "@/lib/cart/store";
 import { Button } from "@/components/ui/Button";
 
 const POST_COMPRA_STORAGE = "cuenta_postcompra";
 const POST_COMPRA_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const STATUS_TIMEOUT_MS = 8000;
 
-// ─── Animated check SVG ───────────────────────────────────────────────────────
+type PaymentStatus = "loading" | "paid" | "failed";
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
 
 function CheckIcon() {
   return (
@@ -22,22 +26,15 @@ function CheckIcon() {
     >
       <svg viewBox="0 0 52 52" className="h-12 w-12" aria-hidden>
         <motion.circle
-          cx="26"
-          cy="26"
-          r="24"
-          fill="none"
-          stroke="#16a34a"
-          strokeWidth="2"
+          cx="26" cy="26" r="24"
+          fill="none" stroke="#16a34a" strokeWidth="2"
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
         />
         <motion.path
-          fill="none"
-          stroke="#16a34a"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          fill="none" stroke="#16a34a" strokeWidth="3.5"
+          strokeLinecap="round" strokeLinejoin="round"
           d="M14 27l8 8 16-16"
           initial={{ pathLength: 0 }}
           animate={{ pathLength: 1 }}
@@ -48,35 +45,76 @@ function CheckIcon() {
   );
 }
 
+function ErrorIcon() {
+  return (
+    <motion.div
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
+      transition={{ type: "spring", stiffness: 220, damping: 18, delay: 0.05 }}
+      className="flex h-24 w-24 items-center justify-center rounded-full bg-red-50 ring-8 ring-red-100"
+    >
+      <svg viewBox="0 0 52 52" className="h-12 w-12" aria-hidden>
+        <motion.circle
+          cx="26" cy="26" r="24"
+          fill="none" stroke="#dc2626" strokeWidth="2"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+        />
+        <motion.path
+          fill="none" stroke="#dc2626" strokeWidth="3.5"
+          strokeLinecap="round" strokeLinejoin="round"
+          d="M17 17 l18 18 M35 17 l-18 18"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 0.35, delay: 0.38, ease: "easeOut" }}
+        />
+      </svg>
+    </motion.div>
+  );
+}
+
+// ─── Loading ──────────────────────────────────────────────────────────────────
+
+function LoadingState() {
+  return (
+    <main className="flex min-h-[82vh] flex-col items-center justify-center px-4 py-16 text-center">
+      <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[var(--color-background)] ring-8 ring-[var(--color-border)]">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-[var(--color-primary)]" />
+      </div>
+      <p className="mt-8 font-semibold text-[var(--color-text)]">Verificando tu pago…</p>
+      <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+        Confirmando el estado con Flow Chile
+      </p>
+    </main>
+  );
+}
+
 // ─── Main content ─────────────────────────────────────────────────────────────
 
 function ConfirmationContent() {
   const searchParams = useSearchParams();
   const order = searchParams.get("order");
   const display = searchParams.get("display") || order;
-  const cleared = useRef(false);
-  const clear = useCartStore((s) => s.clear);
-  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
 
+  const clearRef = useRef(false);
+  const clear = useCartStore((s) => s.clear);
+
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("loading");
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [waPhone, setWaPhone] = useState("");
+  const [waEnabled, setWaEnabled] = useState(false);
+
+  // Read customer email from sessionStorage
   useEffect(() => {
-    if (!order) {
-      setCustomerEmail(null);
-      return;
-    }
+    if (!order) { setCustomerEmail(null); return; }
     try {
       const raw = sessionStorage.getItem(POST_COMPRA_STORAGE);
-      if (!raw) {
-        setCustomerEmail(null);
-        return;
-      }
+      if (!raw) { setCustomerEmail(null); return; }
       const d = JSON.parse(raw) as { order?: string; email?: string; t?: number };
-      if (d.order !== order || !d.email) {
-        setCustomerEmail(null);
-        return;
-      }
+      if (d.order !== order || !d.email) { setCustomerEmail(null); return; }
       if (typeof d.t === "number" && Date.now() - d.t > POST_COMPRA_MAX_AGE_MS) {
-        setCustomerEmail(null);
-        return;
+        setCustomerEmail(null); return;
       }
       setCustomerEmail(d.email);
     } catch {
@@ -84,12 +122,133 @@ function ConfirmationContent() {
     }
   }, [order]);
 
+  // Verify payment status + fetch WA config
   useEffect(() => {
-    if (cleared.current) return;
-    cleared.current = true;
-    clear();
-  }, [clear]);
+    if (!order) {
+      setPaymentStatus("failed");
+      return;
+    }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+      setPaymentStatus((prev) => (prev === "loading" ? "failed" : prev));
+    }, STATUS_TIMEOUT_MS);
+
+    async function checkStatus() {
+      try {
+        const [statusRes, waRes] = await Promise.all([
+          fetch(`/api/orders/status?order=${encodeURIComponent(order!)}`, {
+            signal: controller.signal,
+          }),
+          fetch("/api/checkout/whatsapp-config", { signal: controller.signal }),
+        ]);
+
+        if (waRes.ok) {
+          const waData = (await waRes.json()) as {
+            enableWhatsappCheckout?: boolean;
+            supportWhatsapp?: string;
+          };
+          if (waData.enableWhatsappCheckout && waData.supportWhatsapp) {
+            setWaEnabled(true);
+            setWaPhone(waData.supportWhatsapp);
+          }
+        }
+
+        if (!statusRes.ok) {
+          setPaymentStatus("failed");
+          return;
+        }
+
+        const payload = (await statusRes.json()) as { status?: string };
+
+        if (payload.status === "paid") {
+          if (!clearRef.current) {
+            clearRef.current = true;
+            clear();
+          }
+          setPaymentStatus("paid");
+        } else {
+          setPaymentStatus("failed");
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setPaymentStatus("failed");
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    checkStatus();
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [order, clear]);
+
+  // ── Loading ────────────────────────────────────────────────────────────────
+  if (paymentStatus === "loading") return <LoadingState />;
+
+  // ── Payment failed ─────────────────────────────────────────────────────────
+  if (paymentStatus === "failed") {
+    const waMsg = `Hola, tuve un problema con mi pago para el pedido ${display ?? order ?? ""}. ¿Pueden ayudarme?`;
+    const waUrl =
+      waEnabled && waPhone
+        ? `https://wa.me/${waPhone.replace(/\D/g, "")}?text=${encodeURIComponent(waMsg)}`
+        : null;
+
+    return (
+      <main className="flex min-h-[82vh] flex-col items-center justify-center px-4 py-16 text-center">
+        <ErrorIcon />
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.4, ease: "easeOut" }}
+          className="mt-8 flex flex-col items-center gap-5"
+        >
+          <h1 className="font-display text-3xl font-bold tracking-tight text-[var(--color-text)] sm:text-4xl">
+            No pudimos confirmar tu pago
+          </h1>
+
+          <p className="max-w-sm leading-relaxed text-[var(--color-text-muted)]">
+            Flow no completó el cobro. Tu pedido no fue procesado y nada fue
+            descontado de tu cuenta.
+          </p>
+
+          <div className="mt-2 flex flex-col items-center gap-3 sm:flex-row">
+            <Link href="/checkout">
+              <Button size="lg">Volver al checkout</Button>
+            </Link>
+
+            {waUrl && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-11 items-center gap-2 rounded-[var(--radius-md)] border border-[#1e9e51] bg-gradient-to-b from-[#2adf72] to-[#22c55e] px-5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Pedir ayuda por WhatsApp
+              </a>
+            )}
+          </div>
+        </motion.div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.9 }}
+          className="mt-12 text-xs text-[var(--color-text-muted)]"
+        >
+          Si el problema persiste, contáctanos y te ayudamos.
+        </motion.p>
+      </main>
+    );
+  }
+
+  // ── Payment confirmed ──────────────────────────────────────────────────────
   return (
     <main className="flex min-h-[82vh] flex-col items-center justify-center px-4 py-16 text-center">
       <CheckIcon />
@@ -115,7 +274,7 @@ function ConfirmationContent() {
           </div>
         )}
 
-        <p className="max-w-xs text-[var(--color-text-muted)] leading-relaxed">
+        <p className="max-w-xs leading-relaxed text-[var(--color-text-muted)]">
           Te enviaremos los detalles a tu email en los próximos minutos.
         </p>
 
