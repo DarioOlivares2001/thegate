@@ -65,7 +65,7 @@ export async function sendOrderNotification(payload: OrderNotificationPayload) {
     branding,
   });
 
-  const adminSubject = "Nuevo pedido recibido";
+  const adminSubject = `Nuevo pedido — ${branding.storeName}`;
   const adminHtml = getOrderAdminHtml({
     orderNumber: payload.orderNumber,
     displayCode,

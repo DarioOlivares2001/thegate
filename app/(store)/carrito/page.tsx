@@ -75,15 +75,6 @@ export default function CarritoPage() {
     let savings = 0;
     let totalOriginal = 0;
     for (const item of items) {
-      const list = item.unitListPrice ?? item.price;
-      if (
-        !item.isUpsellOffer &&
-        item.source !== "upsell" &&
-        item.discount_enabled === true &&
-        list > item.price
-      ) {
-        savings += (list - item.price) * item.quantity;
-      }
       const comparative = item.originalPrice;
       if (typeof comparative === "number" && comparative > item.price) {
         savings += (comparative - item.price) * item.quantity;
