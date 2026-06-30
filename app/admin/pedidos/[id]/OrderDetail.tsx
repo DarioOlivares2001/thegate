@@ -47,6 +47,7 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 function getPrimaryAction(status: string): { label: string; nextStatus: string | null; done?: boolean } {
+  if (status === "awaiting_payment") return { label: "Confirmar pago", nextStatus: "paid" };
   if (status === "pending") return { label: "Confirmar pago", nextStatus: "paid" };
   if (status === "paid") return { label: "A preparación", nextStatus: "preparing" };
   if (status === "preparing") return { label: "En despacho", nextStatus: "shipped" };
