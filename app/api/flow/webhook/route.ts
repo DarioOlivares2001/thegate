@@ -114,16 +114,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true }, { status: 200 });
     }
 
-    // Flow status:
-    //  1 → pending
-    //  2 → paid
-    //  3 → rejected
-    //  4 → cancelled
+    // Flow status:  1 → pendiente  2 → pagado  3 → rechazado  4 → cancelado
+
+    if (statusCode === 1) {
+      // Genuinamente pendiente: Flow puede volver a confirmar, no tocar la orden.
+      console.log("[flow-webhook] pago pendiente (statusCode 1), sin cambios", { commerceOrder });
+      return NextResponse.json({ received: true }, { status: 200 });
+    }
+
+    if (statusCode === 3 || statusCode === 4) {
+      // Terminal sin pago: marcar cancelled para que el polling de la confirmación lo detecte.
+      // Guard .eq("status", "awaiting_payment") evita pisar una orden ya paid si este
+      // webhook de rechazo llega tarde (después del webhook de pago exitoso).
+      console.log("[flow-webhook] pago no completado, marcando cancelled", { commerceOrder, statusCode });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin as any)
+        .from("orders")
+        .update({ status: "cancelled" })
+        .eq("id", orderRow.id)
+        .eq("status", "awaiting_payment");
+      return NextResponse.json({ received: true }, { status: 200 });
+    }
+
     if (statusCode !== 2) {
-      console.log("[flow-webhook] estado no-paid, no se descuenta stock", {
-        commerceOrder,
-        statusCode,
-      });
+      console.warn("[flow-webhook] statusCode desconocido, sin cambios", { commerceOrder, statusCode });
       return NextResponse.json({ received: true }, { status: 200 });
     }
 

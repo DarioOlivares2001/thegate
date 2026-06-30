@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/Button";
 
 const POST_COMPRA_STORAGE = "cuenta_postcompra";
 const POST_COMPRA_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const STATUS_TIMEOUT_MS = 8000;
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_MS = 25000;
 
 type PaymentStatus = "loading" | "paid" | "failed";
 
@@ -82,9 +83,9 @@ function LoadingState() {
       <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[var(--color-background)] ring-8 ring-[var(--color-border)]">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-[var(--color-primary)]" />
       </div>
-      <p className="mt-8 font-semibold text-[var(--color-text)]">Verificando tu pago…</p>
+      <p className="mt-8 font-semibold text-[var(--color-text)]">Estamos verificando tu pago…</p>
       <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-        Confirmando el estado con Flow Chile
+        Puede tardar unos segundos. No cierres esta página.
       </p>
     </main>
   );
@@ -122,69 +123,64 @@ function ConfirmationContent() {
     }
   }, [order]);
 
-  // Verify payment status + fetch WA config
+  // Verifica estado real con polling: awaiting_payment → sigue polleando,
+  // paid → éxito (limpia carrito), cualquier otro estado → fallo inmediato.
   useEffect(() => {
-    if (!order) {
-      setPaymentStatus("failed");
-      return;
-    }
+    if (!order) { setPaymentStatus("failed"); return; }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-      setPaymentStatus((prev) => (prev === "loading" ? "failed" : prev));
-    }, STATUS_TIMEOUT_MS);
+    const startTime = Date.now();
+    let pollTimeout: ReturnType<typeof setTimeout>;
 
-    async function checkStatus() {
+    // WA config: se carga una sola vez en paralelo, no bloquea el polling.
+    fetch("/api/checkout/whatsapp-config", { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { enableWhatsappCheckout?: boolean; supportWhatsapp?: string } | null) => {
+        if (d?.enableWhatsappCheckout && d.supportWhatsapp) {
+          setWaEnabled(true);
+          setWaPhone(d.supportWhatsapp);
+        }
+      })
+      .catch(() => {});
+
+    async function poll() {
+      if (controller.signal.aborted) return;
       try {
-        const [statusRes, waRes] = await Promise.all([
-          fetch(`/api/orders/status?order=${encodeURIComponent(order!)}`, {
-            signal: controller.signal,
-          }),
-          fetch("/api/checkout/whatsapp-config", { signal: controller.signal }),
-        ]);
+        const res = await fetch(
+          `/api/orders/status?order=${encodeURIComponent(order!)}`,
+          { signal: controller.signal, cache: "no-store" }
+        );
 
-        if (waRes.ok) {
-          const waData = (await waRes.json()) as {
-            enableWhatsappCheckout?: boolean;
-            supportWhatsapp?: string;
-          };
-          if (waData.enableWhatsappCheckout && waData.supportWhatsapp) {
-            setWaEnabled(true);
-            setWaPhone(waData.supportWhatsapp);
-          }
+        if (!res.ok) { setPaymentStatus("failed"); return; }
+
+        const { status } = (await res.json()) as { status?: string };
+
+        if (status === "paid") {
+          if (!clearRef.current) { clearRef.current = true; clear(); }
+          setPaymentStatus("paid");
+          return;
         }
 
-        if (!statusRes.ok) {
+        // Estado terminal distinto a paid (cancelled, rejected, etc.) → fallo inmediato.
+        if (status !== "awaiting_payment") {
           setPaymentStatus("failed");
           return;
         }
 
-        const payload = (await statusRes.json()) as { status?: string };
+        // Sigue en awaiting_payment: reintentar si no agotamos el tiempo.
+        if (Date.now() - startTime >= POLL_MAX_MS) {
+          setPaymentStatus("failed");
+          return;
+        }
 
-        if (payload.status === "paid") {
-          if (!clearRef.current) {
-            clearRef.current = true;
-            clear();
-          }
-          setPaymentStatus("paid");
-        } else {
-          setPaymentStatus("failed");
-        }
+        pollTimeout = setTimeout(poll, POLL_INTERVAL_MS);
       } catch {
-        if (!controller.signal.aborted) {
-          setPaymentStatus("failed");
-        }
-      } finally {
-        clearTimeout(timeout);
+        if (!controller.signal.aborted) setPaymentStatus("failed");
       }
     }
 
-    checkStatus();
-    return () => {
-      controller.abort();
-      clearTimeout(timeout);
-    };
+    poll();
+    return () => { controller.abort(); clearTimeout(pollTimeout); };
   }, [order, clear]);
 
   // ── Loading ────────────────────────────────────────────────────────────────
