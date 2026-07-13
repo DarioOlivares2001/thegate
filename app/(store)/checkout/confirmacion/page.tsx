@@ -169,6 +169,16 @@ function ConfirmationContent() {
 
         // Sigue en awaiting_payment: reintentar si no agotamos el tiempo.
         if (Date.now() - startTime >= POLL_MAX_MS) {
+          // Posible cancelación voluntaria que Flow no notificó por webhook.
+          // Verificamos con Flow usando el flow_token guardado en BD (no el
+          // status que reporte el cliente) antes de marcar la orden cancelled.
+          if (order) {
+            fetch("/api/orders/cancel-if-unpaid", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ order }),
+            }).catch(() => {});
+          }
           setPaymentStatus("failed");
           return;
         }

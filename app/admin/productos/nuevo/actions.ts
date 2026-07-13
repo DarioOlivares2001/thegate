@@ -428,10 +428,25 @@ export async function updateProductAction(
   return { success: true };
 }
 
-export async function deleteProductAction(id: string): Promise<{ error?: string }> {
+export async function archiveProductAction(id: string): Promise<{ error?: string }> {
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("products").delete().eq("id", id);
+  const { error } = await (supabase as any)
+    .from("products")
+    .update({ active: false, deleted_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/productos");
+  return {};
+}
+
+export async function restoreProductAction(id: string): Promise<{ error?: string }> {
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("products")
+    .update({ active: true, deleted_at: null })
+    .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/admin/productos");
   return {};

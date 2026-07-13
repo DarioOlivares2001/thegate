@@ -1,55 +1,61 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Pencil, Trash2, PackageOpen } from "lucide-react";
+import { Plus, Pencil, PackageOpen } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeProductCategory } from "@/lib/product/categories";
 import { formatPrice } from "@/lib/utils/format";
-import { deleteProductAction } from "./nuevo/actions";
+import {
+  ArchiveProductButton,
+  RestoreProductButton,
+} from "@/components/admin/ProductAdminButtons";
 
 export const metadata: Metadata = { title: "Productos — Admin" };
 
-// Forzamos render dinámico: el stock se descuenta al pagarse una orden
-// (flow/create mock + flow/webhook real). Si esta page quedara cacheada,
-// el admin mostraría stock antiguo hasta el siguiente full reload.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function getAllProducts() {
+type Tab = "active" | "inactive" | "archived";
+
+async function getProductsByTab(tab: Tab) {
   try {
     const supabase = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    let query = (supabase as any)
       .from("products")
-      .select("id, name, slug, price, compare_at_price, stock, category, images, active, created_at")
+      .select(
+        "id, name, slug, price, compare_at_price, stock, category, images, active, deleted_at, created_at"
+      )
       .order("created_at", { ascending: false });
+
+    if (tab === "active")   query = query.eq("active", true).is("deleted_at", null);
+    if (tab === "inactive") query = query.eq("active", false).is("deleted_at", null);
+    if (tab === "archived") query = query.not("deleted_at", "is", null);
+
+    const { data } = await query;
     return data ?? [];
   } catch {
     return [];
   }
 }
 
-function DeleteButton({ id }: { id: string }) {
-  return (
-    <form
-      action={async () => {
-        "use server";
-        await deleteProductAction(id);
-      }}
-    >
-      <button
-        type="submit"
-        className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        Eliminar
-      </button>
-    </form>
-  );
-}
+export default async function AdminProductosPage({
+  searchParams,
+}: {
+  searchParams?: { tab?: string };
+}) {
+  const tab = (["active", "inactive", "archived"].includes(searchParams?.tab ?? "")
+    ? searchParams!.tab
+    : "active") as Tab;
 
-export default async function AdminProductosPage() {
-  const products = await getAllProducts();
+  const products = await getProductsByTab(tab);
+
+  const tabCls = (t: Tab) =>
+    `px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+      tab === t
+        ? "border-zinc-900 text-zinc-900"
+        : "border-transparent text-zinc-500 hover:text-zinc-700"
+    }`;
 
   return (
     <div>
@@ -57,7 +63,7 @@ export default async function AdminProductosPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-zinc-900">Productos</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">{products.length} en total</p>
+          <p className="mt-0.5 text-sm text-zinc-500">{products.length} en esta vista</p>
         </div>
         <Link
           href="/admin/productos/nuevo"
@@ -68,24 +74,41 @@ export default async function AdminProductosPage() {
         </Link>
       </div>
 
+      {/* Tabs */}
+      <div className="mb-0 flex border-b border-zinc-200">
+        <Link href="/admin/productos?tab=active"   className={tabCls("active")}>Activos</Link>
+        <Link href="/admin/productos?tab=inactive" className={tabCls("inactive")}>Inactivos</Link>
+        <Link href="/admin/productos?tab=archived" className={tabCls("archived")}>Archivados</Link>
+      </div>
+
       {/* Empty state */}
       {products.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-zinc-200 bg-white py-24 text-center">
+        <div className="flex flex-col items-center justify-center gap-4 rounded-b-xl border border-t-0 border-zinc-200 bg-white py-24 text-center">
           <PackageOpen className="h-12 w-12 text-zinc-300" strokeWidth={1} />
           <div>
-            <p className="font-semibold text-zinc-700">Sin productos todavía</p>
-            <p className="mt-1 text-sm text-zinc-400">Crea tu primer producto para empezar a vender.</p>
+            <p className="font-semibold text-zinc-700">
+              {tab === "archived" ? "Sin productos archivados" : "Sin productos aquí"}
+            </p>
+            <p className="mt-1 text-sm text-zinc-400">
+              {tab === "active"
+                ? "Crea tu primer producto para empezar a vender."
+                : tab === "inactive"
+                ? "No hay productos inactivos."
+                : "Los productos que archives aparecerán aquí."}
+            </p>
           </div>
-          <Link
-            href="/admin/productos/nuevo"
-            className="mt-2 flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-          >
-            <Plus className="h-4 w-4" />
-            Crear producto
-          </Link>
+          {tab === "active" && (
+            <Link
+              href="/admin/productos/nuevo"
+              className="mt-2 flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            >
+              <Plus className="h-4 w-4" />
+              Crear producto
+            </Link>
+          )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-b-xl border border-t-0 border-zinc-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
@@ -149,35 +172,49 @@ export default async function AdminProductosPage() {
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 text-zinc-600">{normalizeProductCategory(p.category) || "—"}</td>
+                    <td className="px-4 py-3 text-zinc-600">
+                      {normalizeProductCategory(p.category) || "—"}
+                    </td>
 
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          p.active
+                          tab === "archived"
+                            ? "bg-orange-50 text-orange-700"
+                            : p.active
                             ? "bg-green-50 text-green-700"
                             : "bg-zinc-100 text-zinc-500"
                         }`}
                       >
                         <span
                           className={`h-1.5 w-1.5 rounded-full ${
-                            p.active ? "bg-green-500" : "bg-zinc-400"
+                            tab === "archived"
+                              ? "bg-orange-400"
+                              : p.active
+                              ? "bg-green-500"
+                              : "bg-zinc-400"
                           }`}
                         />
-                        {p.active ? "Activo" : "Inactivo"}
+                        {tab === "archived" ? "Archivado" : p.active ? "Activo" : "Inactivo"}
                       </span>
                     </td>
 
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Link
-                          href={`/admin/productos/${p.id}`}
-                          className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Editar
-                        </Link>
-                        <DeleteButton id={p.id} />
+                        {tab !== "archived" && (
+                          <Link
+                            href={`/admin/productos/${p.id}`}
+                            className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editar
+                          </Link>
+                        )}
+                        {tab === "archived" ? (
+                          <RestoreProductButton id={p.id} name={p.name} />
+                        ) : (
+                          <ArchiveProductButton id={p.id} name={p.name} />
+                        )}
                       </div>
                     </td>
                   </tr>

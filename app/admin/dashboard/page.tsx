@@ -86,7 +86,7 @@ async function getDashboardData() {
         // Last 5 orders
         supabase
           .from("orders")
-          .select("order_number, customer_name, customer_email, total, status, created_at")
+          .select("order_number, display_code, customer_name, customer_email, total, status, created_at")
           .order("created_at", { ascending: false })
           .limit(5),
 
@@ -337,7 +337,7 @@ export default async function DashboardPage() {
                 {recentOrders.map((order: any) => (
                   <tr key={order.order_number} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-5 py-3 font-mono text-xs font-semibold text-zinc-500">
-                      #{order.order_number}
+                      {order.display_code ?? `#${order.order_number}`}
                     </td>
                     <td className="px-5 py-3">
                       <p className="font-medium text-zinc-900">{order.customer_name}</p>

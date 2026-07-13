@@ -25,7 +25,8 @@ export const MOCK_PRODUCTS: Product[] = [
     discount_steps: [],
     discount_label: null,
     product_sections: [],
-    created_at: "2026-04-01T10:00:00Z",
+    deleted_at: null,
+    created_at:"2026-04-01T10:00:00Z",
     updated_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -57,7 +58,8 @@ export const MOCK_PRODUCTS: Product[] = [
     ],
     discount_label: "Más unidades, mejor precio",
     product_sections: [],
-    created_at: "2026-04-05T10:00:00Z",
+    deleted_at: null,
+    created_at:"2026-04-05T10:00:00Z",
     updated_at: "2026-04-05T10:00:00Z",
   },
   {
@@ -84,7 +86,8 @@ export const MOCK_PRODUCTS: Product[] = [
     discount_steps: [],
     discount_label: null,
     product_sections: [],
-    created_at: "2026-04-08T10:00:00Z",
+    deleted_at: null,
+    created_at:"2026-04-08T10:00:00Z",
     updated_at: "2026-04-08T10:00:00Z",
   },
   {
@@ -111,7 +114,8 @@ export const MOCK_PRODUCTS: Product[] = [
     discount_steps: [],
     discount_label: null,
     product_sections: [],
-    created_at: "2026-04-10T10:00:00Z",
+    deleted_at: null,
+    created_at:"2026-04-10T10:00:00Z",
     updated_at: "2026-04-10T10:00:00Z",
   },
   {
@@ -138,7 +142,8 @@ export const MOCK_PRODUCTS: Product[] = [
     discount_steps: [],
     discount_label: null,
     product_sections: [],
-    created_at: "2026-04-12T10:00:00Z",
+    deleted_at: null,
+    created_at:"2026-04-12T10:00:00Z",
     updated_at: "2026-04-12T10:00:00Z",
   },
   {
@@ -165,7 +170,8 @@ export const MOCK_PRODUCTS: Product[] = [
     discount_steps: [],
     discount_label: null,
     product_sections: [],
-    created_at: "2026-04-15T10:00:00Z",
+    deleted_at: null,
+    created_at:"2026-04-15T10:00:00Z",
     updated_at: "2026-04-15T10:00:00Z",
   },
   {
@@ -192,7 +198,8 @@ export const MOCK_PRODUCTS: Product[] = [
     discount_steps: [],
     discount_label: null,
     product_sections: [],
-    created_at: "2026-04-18T10:00:00Z",
+    deleted_at: null,
+    created_at:"2026-04-18T10:00:00Z",
     updated_at: "2026-04-18T10:00:00Z",
   },
   {
@@ -219,7 +226,8 @@ export const MOCK_PRODUCTS: Product[] = [
     discount_steps: [],
     discount_label: null,
     product_sections: [],
-    created_at: "2026-04-20T10:00:00Z",
+    deleted_at: null,
+    created_at:"2026-04-20T10:00:00Z",
     updated_at: "2026-04-20T10:00:00Z",
   },
 ];

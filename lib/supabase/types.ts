@@ -33,13 +33,14 @@ export interface Database {
           discount_steps: Json;
           discount_label: string | null;
           product_sections: Json;
+          deleted_at: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Omit<
           Database["public"]["Tables"]["products"]["Row"],
           "id" | "created_at" | "updated_at" | "product_sections"
-        > & { product_sections?: Json };
+        > & { product_sections?: Json; deleted_at?: string | null };
         Update: Partial<Database["public"]["Tables"]["products"]["Insert"]>;
       };
       product_variants: {

@@ -428,8 +428,11 @@ export async function POST(request: NextRequest) {
           display_code: displayCodeLive,
         })
         .eq("order_number", orderNumberLive);
-    } catch {
-      // Non-critical
+    } catch (e) {
+      console.error("[flow-create] fallo UPDATE display_code/flow_token", {
+        orderNumber: orderNumberLive,
+        error: String(e),
+      });
     }
 
     return NextResponse.json({

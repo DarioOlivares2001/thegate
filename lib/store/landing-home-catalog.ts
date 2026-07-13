@@ -22,6 +22,7 @@ function makeProduct(p: Partial<Product> & Pick<Product, "id" | "slug" | "name" 
     meta_title: p.meta_title ?? null,
     meta_desc: p.meta_desc ?? null,
     active: p.active ?? true,
+    deleted_at: p.deleted_at ?? null,
     created_at: p.created_at ?? isoNow(),
     updated_at: p.updated_at ?? isoNow(),
     ...p,
