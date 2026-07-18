@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Plus, Minus, ShoppingBag, MessageCircle } from "lucide-react";
+import { X, Plus, Minus, ShoppingBag, MessageCircle, ArrowLeft } from "lucide-react";
 import { useCartStore, cartItemToDiscountInput, cartItemNeedsVariantFix, type CartItem } from "@/lib/cart/store";
 import { formatPrice } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
@@ -21,7 +21,7 @@ import {
   formatDiscountTierMinQtyLabel,
   isLastDiscountTier,
 } from "@/lib/discounts";
-import { SHOW_CART_UPSELLS } from "@/lib/config/features";
+import { SHOW_CART_UPSELLS, SHOW_VOLUME_DISCOUNTS } from "@/lib/config/features";
 
 type UpsellOffer = {
   id: string;
@@ -41,6 +41,7 @@ type UpsellOffer = {
 };
 
 function CartVolumeHint({ item }: { item: CartItem }) {
+  if (!SHOW_VOLUME_DISCOUNTS) return null;
   if (item.isUpsellOffer || item.source === "upsell") return null;
   const input = cartItemToDiscountInput(item);
   if (!isDiscountEnabled(input)) return null;
@@ -95,15 +96,6 @@ export function CartDrawer({
     let savings = 0;
     let totalOriginal = 0;
     for (const item of items) {
-      const list = item.unitListPrice ?? item.price;
-      if (
-        !item.isUpsellOffer &&
-        item.source !== "upsell" &&
-        item.discount_enabled === true &&
-        list > item.price
-      ) {
-        savings += (list - item.price) * item.quantity;
-      }
       const priceComparative = item.originalPrice;
       if (typeof priceComparative === "number" && priceComparative > item.price) {
         savings += (priceComparative - item.price) * item.quantity;
@@ -424,22 +416,32 @@ export function CartDrawer({
               </aside>
             )}
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
-              <h2 className="text-base font-semibold text-[var(--color-text)]">
-                Carrito
-                {items.length > 0 && (
-                  <span className="ml-2 text-sm font-normal text-[var(--color-text-muted)]">
-                    ({items.length} {items.length === 1 ? "producto" : "productos"})
-                  </span>
-                )}
-              </h2>
-              <button
+            <div className="border-b border-[var(--color-border)] px-5 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-[var(--color-text)]">
+                  Carrito
+                  {items.length > 0 && (
+                    <span className="ml-2 text-sm font-normal text-[var(--color-text-muted)]">
+                      ({items.length} {items.length === 1 ? "producto" : "productos"})
+                    </span>
+                  )}
+                </h2>
+                <button
+                  onClick={closeDrawer}
+                  aria-label="Cerrar carrito"
+                  className="rounded-[var(--radius-sm)] p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-border)]/40 hover:text-[var(--color-text)] transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <Link
+                href="/productos"
                 onClick={closeDrawer}
-                aria-label="Cerrar carrito"
-                className="rounded-[var(--radius-sm)] p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-border)]/40 hover:text-[var(--color-text)] transition-colors"
+                className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
               >
-                <X className="h-5 w-5" />
-              </button>
+                <ArrowLeft className="h-3 w-3" />
+                Seguir comprando
+              </Link>
             </div>
 
             {variantLineIssues.length > 0 ? (

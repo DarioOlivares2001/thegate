@@ -2,6 +2,7 @@ import { PromoTickerBar } from "@/components/store/PromoTickerBar";
 import { Navbar } from "@/components/store/Navbar";
 import { Footer } from "@/components/store/Footer";
 import { CartDrawer } from "@/components/store/CartDrawer";
+import { WhatsAppFab } from "@/components/store/WhatsAppFab";
 import { Toaster } from "@/components/ui/Toast";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
@@ -20,6 +21,7 @@ export default async function StoreLayout({ children }: { children: React.ReactN
         enableWhatsappCheckout={settings.enable_whatsapp_checkout}
         whatsappPhone={settings.support_whatsapp}
       />
+      <WhatsAppFab phone={settings.support_whatsapp} enabled={settings.enable_whatsapp_fab} />
       <Toaster />
     </>
   );

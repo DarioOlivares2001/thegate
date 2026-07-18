@@ -183,6 +183,7 @@ async function saveSettingsAction(formData: FormData): Promise<{ error?: string;
       "shipping_free_threshold_clp",
       DEFAULT_STORE_SETTINGS.shipping_free_threshold_clp
     ),
+    enable_whatsapp_fab: readBoolean("enable_whatsapp_fab"),
   };
   console.log("[hero-config-save] desktop url payload:", payload.hero_banner_desktop_url || "(empty)");
   console.log("[hero-config-save] mobile url payload:", payload.hero_banner_mobile_url || "(empty)");
@@ -537,6 +538,16 @@ export default async function ConfiguracionPage() {
         defaultValue={settings.support_tiktok}
         placeholder="@usuario o https://tiktok.com/@usuario"
       />
+      <label className="flex items-center gap-2 text-sm text-zinc-700 md:col-span-2">
+        <input
+          type="checkbox"
+          name="enable_whatsapp_fab"
+          value="true"
+          defaultChecked={settings.enable_whatsapp_fab}
+          className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+        />
+        Mostrar botón flotante de WhatsApp en toda la tienda (contacto general, no requiere carrito)
+      </label>
     </div>
   );
 

@@ -217,6 +217,7 @@ export interface Database {
           order_number_offset: number;
           shipping_cost_clp: number;
           shipping_free_threshold_clp: number;
+          enable_whatsapp_fab: boolean;
           created_at: string;
           updated_at: string;
         };

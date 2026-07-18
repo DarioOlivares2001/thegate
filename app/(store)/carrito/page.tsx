@@ -20,8 +20,10 @@ import {
   formatDiscountTierMinQtyLabel,
   isLastDiscountTier,
 } from "@/lib/discounts";
+import { SHOW_VOLUME_DISCOUNTS } from "@/lib/config/features";
 
 function CartVolumeHint({ item }: { item: CartItem }) {
+  if (!SHOW_VOLUME_DISCOUNTS) return null;
   if (item.isUpsellOffer || item.source === "upsell") return null;
   const input = cartItemToDiscountInput(item);
   if (!isDiscountEnabled(input)) return null;

@@ -45,6 +45,8 @@ export interface StoreSettingsView {
   shipping_cost_clp: number;
   /** Umbral de subtotal (CLP) desde el cual el envío es gratis. */
   shipping_free_threshold_clp: number;
+  /** Botón flotante de WhatsApp (contacto general), independiente de enable_whatsapp_checkout. */
+  enable_whatsapp_fab: boolean;
 }
 
 export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
@@ -87,6 +89,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
   order_number_offset: 0,
   shipping_cost_clp: 3_990,
   shipping_free_threshold_clp: 30_000,
+  enable_whatsapp_fab: true,
 };
 
 function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
@@ -223,6 +226,10 @@ function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
     shipping_free_threshold_clp: asNonNegativeInt(
       (row as Record<string, unknown>).shipping_free_threshold_clp,
       DEFAULT_STORE_SETTINGS.shipping_free_threshold_clp
+    ),
+    enable_whatsapp_fab: asBoolean(
+      (row as Record<string, unknown>).enable_whatsapp_fab,
+      DEFAULT_STORE_SETTINGS.enable_whatsapp_fab
     ),
   };
 }

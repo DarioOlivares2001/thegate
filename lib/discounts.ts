@@ -1,4 +1,5 @@
 import type { Json } from "@/lib/supabase/types";
+import { SHOW_VOLUME_DISCOUNTS } from "@/lib/config/features";
 
 /** Paso de descuento por cantidad mínima en carrito (misma línea / producto). */
 export type DiscountStep = {
@@ -79,6 +80,7 @@ export function getApplicableProductDiscount(
   product: ProductDiscountInput,
   quantity: number
 ): number {
+  if (!SHOW_VOLUME_DISCOUNTS) return 0;
   if (!isDiscountEnabled(product)) return 0;
   const steps = normalizeDiscountSteps(product.discount_steps);
   if (steps.length === 0) return 0;
@@ -126,6 +128,7 @@ export function getNextDiscountStep(
   product: ProductDiscountInput,
   quantity: number
 ): DiscountStep | null {
+  if (!SHOW_VOLUME_DISCOUNTS) return null;
   if (!isDiscountEnabled(product)) return null;
   const steps = normalizeDiscountSteps(product.discount_steps);
   if (steps.length === 0) return null;
