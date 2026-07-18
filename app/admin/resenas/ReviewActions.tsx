@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { toast } from "@/components/ui/Toast";
 
 type ReviewStatusTab = "pending" | "approved" | "rejected";
-
-type ActionFn = (formData: FormData) => Promise<void>;
+type ActionKind = "approve" | "reject" | "hide";
+type ActionFn = (id: string) => Promise<{ error?: string }>;
 
 export function ReviewActions({
   reviewId,
@@ -21,59 +22,59 @@ export function ReviewActions({
   rejectAction: ActionFn;
   hideAction: ActionFn;
 }) {
+  const [pending, setPending] = useState<ActionKind | null>(null);
+
+  async function run(action: ActionFn, kind: ActionKind, successMessage: string) {
+    setPending(kind);
+    try {
+      const result = await action(reviewId);
+      if (result?.error) {
+        toast.error(result.error);
+      } else {
+        toast.success(successMessage);
+      }
+    } finally {
+      setPending(null);
+    }
+  }
+
   return (
     <div className="mt-4 flex flex-wrap gap-2">
       {status !== "approved" ? (
-        <form
-          action={approveAction}
-          onSubmit={() => {
-            toast.success("Reseña aprobada");
-          }}
+        <button
+          type="button"
+          disabled={pending !== null}
+          onClick={() => run(approveAction, "approve", "Reseña aprobada")}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-emerald-600/30 transition hover:scale-[1.02] hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <input type="hidden" name="id" value={reviewId} />
-          <button
-            type="submit"
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-emerald-600/30 transition hover:scale-[1.02] hover:bg-emerald-700"
-          >
-            Aprobar rápido
-          </button>
-        </form>
+          {pending === "approve" ? "Aprobando…" : "Aprobar rápido"}
+        </button>
       ) : null}
 
       {status !== "rejected" ? (
-        <form
-          action={rejectAction}
-          onSubmit={(e) => {
-            const ok = window.confirm("¿Seguro que quieres rechazar esta reseña?");
-            if (!ok) {
-              e.preventDefault();
-              return;
-            }
-            toast.success("Reseña rechazada");
+        <button
+          type="button"
+          disabled={pending !== null}
+          onClick={() => {
+            if (!window.confirm("¿Seguro que quieres rechazar esta reseña?")) return;
+            run(rejectAction, "reject", "Reseña rechazada");
           }}
+          className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <input type="hidden" name="id" value={reviewId} />
-          <button
-            type="submit"
-            className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700"
-          >
-            Rechazar
-          </button>
-        </form>
+          {pending === "reject" ? "Rechazando…" : "Rechazar"}
+        </button>
       ) : null}
 
       {status === "approved" && active ? (
-        <form action={hideAction}>
-          <input type="hidden" name="id" value={reviewId} />
-          <button
-            type="submit"
-            className="rounded-lg bg-zinc-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
-          >
-            Ocultar aprobada
-          </button>
-        </form>
+        <button
+          type="button"
+          disabled={pending !== null}
+          onClick={() => run(hideAction, "hide", "Reseña ocultada")}
+          className="rounded-lg bg-zinc-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {pending === "hide" ? "Ocultando…" : "Ocultar aprobada"}
+        </button>
       ) : null}
     </div>
   );
 }
-

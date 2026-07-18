@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/Toast";
 
 type AdminRole = "owner" | "admin" | "operator";
 type AdminUser = {
@@ -27,8 +28,6 @@ export function AdminUsersClient({ initialUsers }: { initialUsers: AdminUser[] }
   const [users, setUsers] = useState(initialUsers);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [createLoading, setCreateLoading] = useState(false);
-  const [message, setMessage] = useState<string>("");
-  const [error, setError] = useState<string>("");
 
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -40,11 +39,6 @@ export function AdminUsersClient({ initialUsers }: { initialUsers: AdminUser[] }
     [users]
   );
 
-  function setFeedback(ok: string, err = "") {
-    setMessage(ok);
-    setError(err);
-  }
-
   async function refreshList() {
     const res = await fetch("/api/admin/users", { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
@@ -55,7 +49,6 @@ export function AdminUsersClient({ initialUsers }: { initialUsers: AdminUser[] }
 
   async function createUser(e: React.FormEvent) {
     e.preventDefault();
-    setFeedback("", "");
     setCreateLoading(true);
     try {
       const res = await fetch("/api/admin/users", {
@@ -70,25 +63,24 @@ export function AdminUsersClient({ initialUsers }: { initialUsers: AdminUser[] }
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setFeedback("", typeof data.error === "string" ? data.error : "No se pudo crear el usuario admin.");
+        toast.error(typeof data.error === "string" ? data.error : "No se pudo crear el usuario admin.");
         return;
       }
       setNewEmail("");
       setNewPassword("");
       setNewRole("admin");
       setNewActive(true);
-      setFeedback("Usuario admin creado correctamente.");
+      toast.success("Usuario admin creado correctamente.");
       await refreshList();
       router.refresh();
     } catch {
-      setFeedback("", "Error de conexión.");
+      toast.error("Error de conexión.");
     } finally {
       setCreateLoading(false);
     }
   }
 
   async function saveUser(id: string, role: AdminRole, active: boolean) {
-    setFeedback("", "");
     setBusyId(id);
     try {
       const res = await fetch("/api/admin/users", {
@@ -98,14 +90,14 @@ export function AdminUsersClient({ initialUsers }: { initialUsers: AdminUser[] }
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setFeedback("", typeof data.error === "string" ? data.error : "No se pudo guardar.");
+        toast.error(typeof data.error === "string" ? data.error : "No se pudo guardar.");
         return;
       }
-      setFeedback("Usuario actualizado.");
+      toast.success("Usuario actualizado.");
       await refreshList();
       router.refresh();
     } catch {
-      setFeedback("", "Error de conexión.");
+      toast.error("Error de conexión.");
     } finally {
       setBusyId(null);
     }
@@ -113,7 +105,6 @@ export function AdminUsersClient({ initialUsers }: { initialUsers: AdminUser[] }
 
   async function resetPassword(id: string, password: string) {
     if (!password) return;
-    setFeedback("", "");
     setBusyId(id);
     try {
       const res = await fetch("/api/admin/users/reset-password", {
@@ -123,12 +114,12 @@ export function AdminUsersClient({ initialUsers }: { initialUsers: AdminUser[] }
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setFeedback("", typeof data.error === "string" ? data.error : "No se pudo resetear contraseña.");
+        toast.error(typeof data.error === "string" ? data.error : "No se pudo resetear contraseña.");
         return;
       }
-      setFeedback("Contraseña reseteada correctamente.");
+      toast.success("Contraseña reseteada correctamente.");
     } catch {
-      setFeedback("", "Error de conexión.");
+      toast.error("Error de conexión.");
     } finally {
       setBusyId(null);
     }
@@ -185,9 +176,6 @@ export function AdminUsersClient({ initialUsers }: { initialUsers: AdminUser[] }
           </button>
         </form>
       </section>
-
-      {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
         <div className="overflow-x-auto">

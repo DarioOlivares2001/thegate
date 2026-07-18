@@ -25,63 +25,66 @@ type AdminReviewRow = {
   products: { name: string | null; price: number | null } | { name: string | null; price: number | null }[] | null;
 };
 
-async function approveReviewAction(formData: FormData) {
+async function approveReviewAction(id: string): Promise<{ error?: string }> {
   "use server";
-  const id = String(formData.get("id") ?? "").trim();
-  if (!id) return;
+  const trimmedId = id.trim();
+  if (!trimmedId) return { error: "ID de reseña inválido." };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (createAdminClient() as any)
     .from("reviews")
     .update({ status: "approved", active: true })
-    .eq("id", id);
+    .eq("id", trimmedId);
 
   if (error) {
     console.error("[admin/resenas] Error aprobando reseña:", error.message);
-    return;
+    return { error: error.message };
   }
 
   revalidatePath("/admin/resenas");
   revalidatePath("/productos");
+  return {};
 }
 
-async function rejectReviewAction(formData: FormData) {
+async function rejectReviewAction(id: string): Promise<{ error?: string }> {
   "use server";
-  const id = String(formData.get("id") ?? "").trim();
-  if (!id) return;
+  const trimmedId = id.trim();
+  if (!trimmedId) return { error: "ID de reseña inválido." };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (createAdminClient() as any)
     .from("reviews")
     .update({ status: "rejected", active: false })
-    .eq("id", id);
+    .eq("id", trimmedId);
 
   if (error) {
     console.error("[admin/resenas] Error rechazando reseña:", error.message);
-    return;
+    return { error: error.message };
   }
 
   revalidatePath("/admin/resenas");
+  return {};
 }
 
-async function hideApprovedReviewAction(formData: FormData) {
+async function hideApprovedReviewAction(id: string): Promise<{ error?: string }> {
   "use server";
-  const id = String(formData.get("id") ?? "").trim();
-  if (!id) return;
+  const trimmedId = id.trim();
+  if (!trimmedId) return { error: "ID de reseña inválido." };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (createAdminClient() as any)
     .from("reviews")
     .update({ active: false })
-    .eq("id", id)
+    .eq("id", trimmedId)
     .eq("status", "approved");
 
   if (error) {
     console.error("[admin/resenas] Error ocultando reseña aprobada:", error.message);
-    return;
+    return { error: error.message };
   }
 
   revalidatePath("/admin/resenas");
+  return {};
 }
 
 async function getReviewsByStatus(status: ReviewStatusTab) {

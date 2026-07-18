@@ -9,6 +9,8 @@ import {
 import { FontSelectField } from "./FontSelectField";
 import { ThemeLivePreview } from "./ThemeLivePreview";
 import { HeroBannerSection } from "./HeroBannerSection";
+import { ConfigTabs } from "./ConfigTabs";
+import { SaveSettingsForm } from "./SaveSettingsForm";
 
 export const metadata: Metadata = { title: "Configuración" };
 
@@ -36,7 +38,7 @@ const BODY_FONTS = [
   "Outfit",
 ];
 
-async function saveSettingsAction(formData: FormData) {
+async function saveSettingsAction(formData: FormData): Promise<{ error?: string; success?: boolean }> {
   "use server";
 
   function read(field: keyof StoreSettingsView) {
@@ -176,6 +178,11 @@ async function saveSettingsAction(formData: FormData) {
     ),
     enable_whatsapp_checkout: readBoolean("enable_whatsapp_checkout"),
     order_number_offset: readNonNegativeInt("order_number_offset", DEFAULT_STORE_SETTINGS.order_number_offset),
+    shipping_cost_clp: readNonNegativeInt("shipping_cost_clp", DEFAULT_STORE_SETTINGS.shipping_cost_clp),
+    shipping_free_threshold_clp: readNonNegativeInt(
+      "shipping_free_threshold_clp",
+      DEFAULT_STORE_SETTINGS.shipping_free_threshold_clp
+    ),
   };
   console.log("[hero-config-save] desktop url payload:", payload.hero_banner_desktop_url || "(empty)");
   console.log("[hero-config-save] mobile url payload:", payload.hero_banner_mobile_url || "(empty)");
@@ -187,7 +194,7 @@ async function saveSettingsAction(formData: FormData) {
   const { error } = await operation;
   if (error) {
     console.error("[admin/configuracion] Error guardando store_settings:", error.message);
-    return;
+    return { error: `No se pudo guardar: ${error.message}` };
   }
 
   const { data: savedRow, error: savedError } = await supabase
@@ -205,6 +212,8 @@ async function saveSettingsAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/admin");
   revalidatePath("/admin/configuracion");
+  revalidatePath("/checkout");
+  return { success: true };
 }
 
 function Field({
@@ -238,6 +247,360 @@ export default async function ConfiguracionPage() {
   const settings = await getStoreSettings();
   console.log("[hero-config-load] mobile url from store_settings:", settings.hero_banner_mobile_url || "(empty)");
 
+  const identidadTab = (
+    <>
+      <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Preset visual</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Selecciona una base de estilo o usa custom para controlar colores manuales.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Tema</span>
+            <select
+              name="theme_preset"
+              defaultValue={settings.theme_preset}
+              className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            >
+              <option value="minimal_black">Minimal negro</option>
+              <option value="pets_purple_pink">Mascotas morado/rosado</option>
+              <option value="premium_dark">Premium oscuro</option>
+              <option value="natural_green">Natural/verde</option>
+              <option value="pastel">Pastel</option>
+              <option value="custom">Custom (manual)</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 pt-7 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              name="theme_manual_override"
+              value="true"
+              defaultChecked={settings.theme_manual_override}
+              className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+            />
+            Forzar colores manuales sobre preset
+          </label>
+        </div>
+      </div>
+
+      <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Branding</h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Modo de branding</span>
+            <select
+              name="branding_mode"
+              defaultValue={settings.branding_mode}
+              className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            >
+              <option value="logo">Solo logo</option>
+              <option value="text">Solo texto</option>
+              <option value="logo_and_text">Logo + texto</option>
+            </select>
+          </label>
+          <Field
+            label="Favicon URL"
+            name="favicon_url"
+            type="url"
+            defaultValue={settings.favicon_url}
+            placeholder="https://..."
+          />
+          <Field
+            label="Tamaño logo desktop (px)"
+            name="logo_size_desktop"
+            type="text"
+            defaultValue={String(settings.logo_size_desktop)}
+            placeholder="32"
+          />
+          <Field
+            label="Tamaño logo mobile (px)"
+            name="logo_size_mobile"
+            type="text"
+            defaultValue={String(settings.logo_size_mobile)}
+            placeholder="28"
+          />
+          <Field
+            label="Escala texto marca"
+            name="brand_text_scale"
+            type="text"
+            defaultValue={String(settings.brand_text_scale)}
+            placeholder="1"
+          />
+          <Field
+            label="Color texto marca"
+            name="brand_text_color"
+            type="color"
+            defaultValue={settings.brand_text_color}
+          />
+        </div>
+      </div>
+
+      <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Navbar</h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Posición branding</span>
+            <select
+              name="navbar_brand_position"
+              defaultValue={settings.navbar_brand_position}
+              className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            >
+              <option value="left">Izquierda</option>
+              <option value="center">Centro</option>
+              <option value="right">Derecha</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Posición menú</span>
+            <select
+              name="navbar_menu_position"
+              defaultValue={settings.navbar_menu_position}
+              className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            >
+              <option value="left">Izquierda</option>
+              <option value="center">Centro</option>
+              <option value="right">Derecha</option>
+            </select>
+          </label>
+          <Field
+            label="Fondo navbar"
+            name="navbar_background_color"
+            type="color"
+            defaultValue={settings.navbar_background_color}
+          />
+          <Field
+            label="Texto navbar"
+            name="navbar_text_color"
+            type="color"
+            defaultValue={settings.navbar_text_color}
+          />
+        </div>
+      </div>
+
+      <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Footer</h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field
+            label="Fondo footer"
+            name="footer_background_color"
+            type="color"
+            defaultValue={settings.footer_background_color}
+          />
+          <Field
+            label="Texto footer"
+            name="footer_text_color"
+            type="color"
+            defaultValue={settings.footer_text_color}
+          />
+        </div>
+      </div>
+
+      <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Tipografía</h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FontSelectField
+            label="Fuente headings"
+            name="font_heading"
+            defaultValue={settings.font_heading}
+            options={HEADING_FONTS}
+            helperText="Puedes usar fuentes display como Playfair Display para titulares."
+            previewText="Vista heading: Título de ejemplo para tu marca"
+          />
+          <FontSelectField
+            label="Fuente cuerpo"
+            name="font_body"
+            defaultValue={settings.font_body}
+            options={BODY_FONTS}
+            helperText="Solo fuentes legibles para textos largos."
+            previewText="Vista cuerpo: Este texto simula párrafos y descripciones de productos."
+          />
+        </div>
+      </div>
+
+      <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Colores manuales</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Se mantienen como override cuando el preset es custom o si activas &quot;Forzar colores manuales&quot;.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field
+            label="Color primario"
+            name="primary_color"
+            type="color"
+            defaultValue={settings.primary_color}
+          />
+          <Field
+            label="Color acento"
+            name="accent_color"
+            type="color"
+            defaultValue={settings.accent_color}
+          />
+          <Field
+            label="Color fondo"
+            name="background_color"
+            type="color"
+            defaultValue={settings.background_color}
+          />
+          <Field
+            label="Color superficie"
+            name="surface_color"
+            type="color"
+            defaultValue={settings.surface_color}
+          />
+          <Field
+            label="Color texto"
+            name="text_color"
+            type="color"
+            defaultValue={settings.text_color}
+          />
+          <Field
+            label="Color texto secundario"
+            name="text_muted_color"
+            type="color"
+            defaultValue={settings.text_muted_color}
+          />
+          <Field
+            label="Color borde"
+            name="border_color"
+            type="color"
+            defaultValue={settings.border_color}
+          />
+        </div>
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 md:grid-cols-2">
+        <h2 className="text-sm font-semibold text-zinc-800 md:col-span-2">Datos de la tienda</h2>
+        <Field
+          label="Nombre de la tienda"
+          name="store_name"
+          defaultValue={settings.store_name}
+          placeholder="PonkyBonk"
+        />
+        <Field
+          label="Tagline"
+          name="store_tagline"
+          defaultValue={settings.store_tagline}
+          placeholder="Todo para gatos felices"
+        />
+        <Field
+          label="URL logo horizontal"
+          name="logo_url"
+          type="url"
+          defaultValue={settings.logo_url}
+          placeholder="https://..."
+        />
+        <Field
+          label="URL logo cuadrado"
+          name="logo_square_url"
+          type="url"
+          defaultValue={settings.logo_square_url}
+          placeholder="https://..."
+        />
+      </div>
+
+      <HeroBannerSection
+        formId="store-settings-form"
+        initialDesktopUrl={settings.hero_banner_desktop_url}
+        initialMobileUrl={settings.hero_banner_mobile_url}
+        initialOverlayMode={settings.hero_overlay_mode}
+        initialOverlayOpacity={settings.hero_overlay_opacity}
+      />
+    </>
+  );
+
+  const contactoTab = (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Field
+        label="WhatsApp"
+        name="support_whatsapp"
+        defaultValue={settings.support_whatsapp}
+        placeholder="56912345678"
+      />
+      <Field
+        label="Email de contacto"
+        name="contact_email"
+        type="text"
+        defaultValue={settings.contact_email}
+        placeholder="contacto@mitienda.cl"
+      />
+      <Field
+        label="Instagram URL"
+        name="support_instagram"
+        type="url"
+        defaultValue={settings.support_instagram}
+        placeholder="https://instagram.com/..."
+      />
+      <Field
+        label="TikTok URL"
+        name="support_tiktok"
+        type="text"
+        defaultValue={settings.support_tiktok}
+        placeholder="@usuario o https://tiktok.com/@usuario"
+      />
+    </div>
+  );
+
+  const ventasTab = (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <label className="flex items-center gap-2 text-sm text-zinc-700 md:col-span-2">
+        <input
+          type="checkbox"
+          name="enable_whatsapp_checkout"
+          value="true"
+          defaultChecked={settings.enable_whatsapp_checkout}
+          className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+        />
+        Mostrar &quot;Pedir por WhatsApp&quot; en el carrito (cierra el pedido por chat)
+      </label>
+
+      <label className="flex flex-col gap-1.5 md:col-span-2">
+        <span className="text-sm font-medium text-zinc-700">Offset de número de pedido</span>
+        <input
+          type="number"
+          name="order_number_offset"
+          min="0"
+          step="1"
+          defaultValue={settings.order_number_offset}
+          className="h-10 w-48 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+        />
+        <span className="text-xs text-zinc-500">
+          Se suma al número interno para generar el código de pedido visible al cliente (SO + 8 dígitos).
+          Con offset 0, el pedido #1 → <code>SO00000001</code>. Con offset 1000000 → <code>SO01000001</code>.
+        </span>
+      </label>
+
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-zinc-700">Costo de envío (CLP)</span>
+        <input
+          type="number"
+          name="shipping_cost_clp"
+          min="0"
+          step="1"
+          defaultValue={settings.shipping_cost_clp}
+          className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+        />
+        <span className="text-xs text-zinc-500">
+          Monto fijo que se cobra por despacho cuando el pedido no alcanza el envío gratis.
+        </span>
+      </label>
+
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-zinc-700">Umbral envío gratis (CLP)</span>
+        <input
+          type="number"
+          name="shipping_free_threshold_clp"
+          min="0"
+          step="1"
+          defaultValue={settings.shipping_free_threshold_clp}
+          className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+        />
+        <span className="text-xs text-zinc-500">
+          Subtotal desde el cual el envío pasa a ser gratis. Se usa en checkout, Flow y la barra de progreso.
+        </span>
+      </label>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -247,330 +610,11 @@ export default async function ConfiguracionPage() {
         </p>
       </div>
 
-      <form
-        id="store-settings-form"
-        action={saveSettingsAction}
-        className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"
-      >
+      <SaveSettingsForm action={saveSettingsAction}>
         <ThemeLivePreview formId="store-settings-form" initial={settings} />
 
-        <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <h2 className="text-sm font-semibold text-zinc-800">Preset visual</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Selecciona una base de estilo o usa custom para controlar colores manuales.
-          </p>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-zinc-700">Tema</span>
-              <select
-                name="theme_preset"
-                defaultValue={settings.theme_preset}
-                className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-              >
-                <option value="minimal_black">Minimal negro</option>
-                <option value="pets_purple_pink">Mascotas morado/rosado</option>
-                <option value="premium_dark">Premium oscuro</option>
-                <option value="natural_green">Natural/verde</option>
-                <option value="pastel">Pastel</option>
-                <option value="custom">Custom (manual)</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-2 pt-7 text-sm text-zinc-700">
-              <input
-                type="checkbox"
-                name="theme_manual_override"
-                value="true"
-                defaultChecked={settings.theme_manual_override}
-                className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
-              />
-              Forzar colores manuales sobre preset
-            </label>
-          </div>
-        </div>
-
-        <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <h2 className="text-sm font-semibold text-zinc-800">Branding</h2>
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-zinc-700">Modo de branding</span>
-              <select
-                name="branding_mode"
-                defaultValue={settings.branding_mode}
-                className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-              >
-                <option value="logo">Solo logo</option>
-                <option value="text">Solo texto</option>
-                <option value="logo_and_text">Logo + texto</option>
-              </select>
-            </label>
-            <Field
-              label="Favicon URL"
-              name="favicon_url"
-              type="url"
-              defaultValue={settings.favicon_url}
-              placeholder="https://..."
-            />
-            <Field
-              label="Tamaño logo desktop (px)"
-              name="logo_size_desktop"
-              type="text"
-              defaultValue={String(settings.logo_size_desktop)}
-              placeholder="32"
-            />
-            <Field
-              label="Tamaño logo mobile (px)"
-              name="logo_size_mobile"
-              type="text"
-              defaultValue={String(settings.logo_size_mobile)}
-              placeholder="28"
-            />
-            <Field
-              label="Escala texto marca"
-              name="brand_text_scale"
-              type="text"
-              defaultValue={String(settings.brand_text_scale)}
-              placeholder="1"
-            />
-            <Field
-              label="Color texto marca"
-              name="brand_text_color"
-              type="color"
-              defaultValue={settings.brand_text_color}
-            />
-          </div>
-        </div>
-
-        <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <h2 className="text-sm font-semibold text-zinc-800">Navbar</h2>
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-zinc-700">Posición branding</span>
-              <select
-                name="navbar_brand_position"
-                defaultValue={settings.navbar_brand_position}
-                className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-              >
-                <option value="left">Izquierda</option>
-                <option value="center">Centro</option>
-                <option value="right">Derecha</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-zinc-700">Posición menú</span>
-              <select
-                name="navbar_menu_position"
-                defaultValue={settings.navbar_menu_position}
-                className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-              >
-                <option value="left">Izquierda</option>
-                <option value="center">Centro</option>
-                <option value="right">Derecha</option>
-              </select>
-            </label>
-            <Field
-              label="Fondo navbar"
-              name="navbar_background_color"
-              type="color"
-              defaultValue={settings.navbar_background_color}
-            />
-            <Field
-              label="Texto navbar"
-              name="navbar_text_color"
-              type="color"
-              defaultValue={settings.navbar_text_color}
-            />
-          </div>
-        </div>
-
-        <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <h2 className="text-sm font-semibold text-zinc-800">Footer</h2>
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field
-              label="Fondo footer"
-              name="footer_background_color"
-              type="color"
-              defaultValue={settings.footer_background_color}
-            />
-            <Field
-              label="Texto footer"
-              name="footer_text_color"
-              type="color"
-              defaultValue={settings.footer_text_color}
-            />
-          </div>
-        </div>
-
-        <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <h2 className="text-sm font-semibold text-zinc-800">Tipografía</h2>
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FontSelectField
-              label="Fuente headings"
-              name="font_heading"
-              defaultValue={settings.font_heading}
-              options={HEADING_FONTS}
-              helperText="Puedes usar fuentes display como Playfair Display para titulares."
-              previewText="Vista heading: Título de ejemplo para tu marca"
-            />
-            <FontSelectField
-              label="Fuente cuerpo"
-              name="font_body"
-              defaultValue={settings.font_body}
-              options={BODY_FONTS}
-              helperText="Solo fuentes legibles para textos largos."
-              previewText="Vista cuerpo: Este texto simula párrafos y descripciones de productos."
-            />
-          </div>
-        </div>
-
-        <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <h2 className="text-sm font-semibold text-zinc-800">Colores manuales</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Se mantienen como override cuando el preset es custom o si activas &quot;Forzar colores manuales&quot;.
-          </p>
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field
-              label="Color primario"
-              name="primary_color"
-              type="color"
-              defaultValue={settings.primary_color}
-            />
-            <Field
-              label="Color acento"
-              name="accent_color"
-              type="color"
-              defaultValue={settings.accent_color}
-            />
-            <Field
-              label="Color fondo"
-              name="background_color"
-              type="color"
-              defaultValue={settings.background_color}
-            />
-            <Field
-              label="Color superficie"
-              name="surface_color"
-              type="color"
-              defaultValue={settings.surface_color}
-            />
-            <Field
-              label="Color texto"
-              name="text_color"
-              type="color"
-              defaultValue={settings.text_color}
-            />
-            <Field
-              label="Color texto secundario"
-              name="text_muted_color"
-              type="color"
-              defaultValue={settings.text_muted_color}
-            />
-            <Field
-              label="Color borde"
-              name="border_color"
-              type="color"
-              defaultValue={settings.border_color}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field
-            label="Nombre de la tienda"
-            name="store_name"
-            defaultValue={settings.store_name}
-            placeholder="PonkyBonk"
-          />
-          <Field
-            label="Tagline"
-            name="store_tagline"
-            defaultValue={settings.store_tagline}
-            placeholder="Todo para gatos felices"
-          />
-          <Field
-            label="URL logo horizontal"
-            name="logo_url"
-            type="url"
-            defaultValue={settings.logo_url}
-            placeholder="https://..."
-          />
-          <Field
-            label="URL logo cuadrado"
-            name="logo_square_url"
-            type="url"
-            defaultValue={settings.logo_square_url}
-            placeholder="https://..."
-          />
-          <Field
-            label="WhatsApp"
-            name="support_whatsapp"
-            defaultValue={settings.support_whatsapp}
-            placeholder="56912345678"
-          />
-          <Field
-            label="Email de contacto"
-            name="contact_email"
-            type="text"
-            defaultValue={settings.contact_email}
-            placeholder="contacto@mitienda.cl"
-          />
-          <label className="flex items-center gap-2 text-sm text-zinc-700 md:col-span-2">
-            <input
-              type="checkbox"
-              name="enable_whatsapp_checkout"
-              value="true"
-              defaultChecked={settings.enable_whatsapp_checkout}
-              className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
-            />
-            Mostrar &quot;Pedir por WhatsApp&quot; en el carrito (cierra el pedido por chat)
-          </label>
-          <label className="flex flex-col gap-1.5 md:col-span-2">
-            <span className="text-sm font-medium text-zinc-700">Offset de número de pedido</span>
-            <input
-              type="number"
-              name="order_number_offset"
-              min="0"
-              step="1"
-              defaultValue={settings.order_number_offset}
-              className="h-10 w-48 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-            />
-            <span className="text-xs text-zinc-500">
-              Se suma al número interno para generar el código de pedido visible al cliente (SO + 8 dígitos).
-              Con offset 0, el pedido #1 → <code>SO00000001</code>. Con offset 1000000 → <code>SO01000001</code>.
-            </span>
-          </label>
-          <Field
-            label="Instagram URL"
-            name="support_instagram"
-            type="url"
-            defaultValue={settings.support_instagram}
-            placeholder="https://instagram.com/..."
-          />
-          <Field
-            label="TikTok URL"
-            name="support_tiktok"
-            type="text"
-            defaultValue={settings.support_tiktok}
-            placeholder="@usuario o https://tiktok.com/@usuario"
-          />
-        </div>
-
-        <HeroBannerSection
-          formId="store-settings-form"
-          initialDesktopUrl={settings.hero_banner_desktop_url}
-          initialMobileUrl={settings.hero_banner_mobile_url}
-          initialOverlayMode={settings.hero_overlay_mode}
-          initialOverlayOpacity={settings.hero_overlay_opacity}
-        />
-
-        <div className="mt-5 flex justify-end">
-          <button
-            type="submit"
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700"
-          >
-            Guardar configuración
-          </button>
-        </div>
-      </form>
+        <ConfigTabs identidad={identidadTab} contacto={contactoTab} ventas={ventasTab} />
+      </SaveSettingsForm>
     </div>
   );
 }

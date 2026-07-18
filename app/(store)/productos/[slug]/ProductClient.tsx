@@ -738,10 +738,7 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
           {visibleUpsells.length > 0 && (
             <section className="rounded-[var(--radius-lg)] border border-[var(--color-primary)]/25 bg-zinc-50 px-3.5 py-3">
               <p className="text-sm font-semibold text-zinc-900">
-                🔥 Combínalo con esto y ahorra más
-              </p>
-              <p className="mt-0.5 hidden text-xs text-zinc-600 sm:block">
-                💡 Este producto desbloquea descuentos en el carrito
+                También te puede interesar
               </p>
 
               <div className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

@@ -21,6 +21,7 @@ import {
   formatDiscountTierMinQtyLabel,
   isLastDiscountTier,
 } from "@/lib/discounts";
+import { SHOW_CART_UPSELLS } from "@/lib/config/features";
 
 type UpsellOffer = {
   id: string;
@@ -184,7 +185,7 @@ export function CartDrawer({
   };
 
   useEffect(() => {
-    if (!isOpen || items.length === 0) {
+    if (!SHOW_CART_UPSELLS || !isOpen || items.length === 0) {
       setOffers([]);
       setLoadingOffers(false);
       return;
@@ -337,7 +338,7 @@ export function CartDrawer({
             role="dialog"
             aria-modal="true"
           >
-            {(loadingOffers || offers.length > 0) && (
+            {SHOW_CART_UPSELLS && (loadingOffers || offers.length > 0) && (
               <aside className="absolute left-0 top-[74px] z-30 hidden w-[260px] -translate-x-[calc(100%+12px)] rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[0_20px_45px_rgba(0,0,0,0.28)] lg:block">
                 <p className="text-sm font-semibold text-[var(--color-text)]">🎁 Ofertas para tu pedido</p>
                 <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Solo por este carrito</p>
@@ -568,7 +569,7 @@ export function CartDrawer({
                   ))}
                 </ul>
 
-                {(loadingOffers || offers.length > 0) && (
+                {SHOW_CART_UPSELLS && (loadingOffers || offers.length > 0) && (
                   <section className="border-t border-[var(--color-border)] px-5 py-3 lg:hidden">
                     <div className="flex items-center justify-between">
                       <div>

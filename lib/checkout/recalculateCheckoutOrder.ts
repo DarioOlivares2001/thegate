@@ -7,6 +7,7 @@ import {
 } from "@/lib/discounts";
 import { normalizeOptimizedImageUrl } from "@/lib/images/normalizeOptimizedImageUrl";
 import { computeShippingCostClp } from "@/lib/checkout/shipping";
+import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 
 type ProductRow = Pick<
   Database["public"]["Tables"]["products"]["Row"],
@@ -406,7 +407,12 @@ export async function recalculateCheckoutOrder(
     return { ok: false, error: "Subtotal inválido.", status: 500 };
   }
 
-  const shippingCost = computeShippingCostClp(subRounded);
+  const storeSettings = await getStoreSettings();
+  const shippingCost = computeShippingCostClp(
+    subRounded,
+    storeSettings.shipping_cost_clp,
+    storeSettings.shipping_free_threshold_clp
+  );
   const total = Math.round(subRounded + shippingCost);
 
   return {

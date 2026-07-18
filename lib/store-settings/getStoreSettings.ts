@@ -41,6 +41,10 @@ export interface StoreSettingsView {
   enable_whatsapp_checkout: boolean;
   /** Offset que se suma a order_number para generar el display_code (SO + 8 dígitos). */
   order_number_offset: number;
+  /** Costo de envío en CLP. Fuente de verdad para cliente y servidor (recalculateCheckoutOrder). */
+  shipping_cost_clp: number;
+  /** Umbral de subtotal (CLP) desde el cual el envío es gratis. */
+  shipping_free_threshold_clp: number;
 }
 
 export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
@@ -81,6 +85,8 @@ export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
   hero_overlay_opacity: 60,
   enable_whatsapp_checkout: false,
   order_number_offset: 0,
+  shipping_cost_clp: 3_990,
+  shipping_free_threshold_clp: 30_000,
 };
 
 function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
@@ -209,6 +215,14 @@ function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
     order_number_offset: asNonNegativeInt(
       (row as Record<string, unknown>).order_number_offset,
       DEFAULT_STORE_SETTINGS.order_number_offset
+    ),
+    shipping_cost_clp: asNonNegativeInt(
+      (row as Record<string, unknown>).shipping_cost_clp,
+      DEFAULT_STORE_SETTINGS.shipping_cost_clp
+    ),
+    shipping_free_threshold_clp: asNonNegativeInt(
+      (row as Record<string, unknown>).shipping_free_threshold_clp,
+      DEFAULT_STORE_SETTINGS.shipping_free_threshold_clp
     ),
   };
 }

@@ -1,5 +1,4 @@
 import type { Json, Product } from "@/lib/supabase/types";
-import { computeSafeUpsellDiscountFromProduct } from "@/lib/checkout/recommendations";
 import { normalizeOptimizedImageUrl } from "@/lib/images/normalizeOptimizedImageUrl";
 
 const CONTEXTS = [
@@ -44,15 +43,14 @@ export function pickProductUpsellSuggestions(
   const activeContext = CONTEXTS.find((c) => c.sourceKeywords.some((k) => sourceBlob.includes(k)));
   const contextKeywords = activeContext?.targetKeywords ?? [];
 
-  // Solo se sugieren productos con descuento real habilitado (regla del motor de upsells).
+  // Sugerencias de productos relacionados (sin oferta): activo, con stock,
+  // distinto al actual y sin variantes (no se pueden agregar en una sola unidad).
   const pool = products.filter(
     (p) =>
       p.active &&
       p.stock > 0 &&
       p.id !== currentProduct.id &&
-      !p.has_variants &&
-      p.discount_enabled === true &&
-      Number(p.discount_max_percent) > 0
+      !p.has_variants
   );
 
   const scored = pool
@@ -70,20 +68,16 @@ export function pickProductUpsellSuggestions(
   const out: ProductUpsellSuggestion[] = [];
   for (const { p } of scored) {
     if (out.length >= max) break;
-    // Upsell anuncia el tope `discount_max_percent` como % de oferta.
-    const safe = computeSafeUpsellDiscountFromProduct(p.price, p.cost_price, {
-      discount_enabled: p.discount_enabled,
-      discount_max_percent: p.discount_max_percent,
-    });
+    // Sin oferta: se sugiere y se agrega siempre a precio de lista.
     out.push({
       id: p.id,
       slug: p.slug,
       name: p.name,
       image: normalizeOptimizedImageUrl(p.images?.[0] ?? ""),
       price: p.price,
-      offerPrice: safe?.offerPrice ?? p.price,
-      discountPercent: safe?.discountPercent ?? 0,
-      savings: safe?.savings ?? 0,
+      offerPrice: p.price,
+      discountPercent: 0,
+      savings: 0,
       discount_enabled: p.discount_enabled === true,
       discount_max_percent: p.discount_max_percent ?? null,
       discount_steps: (Array.isArray(p.discount_steps) ? p.discount_steps : []) as Json,

@@ -215,6 +215,8 @@ export interface Database {
           hero_overlay_opacity: number | null;
           hero_overlay_mode: string | null;
           order_number_offset: number;
+          shipping_cost_clp: number;
+          shipping_free_threshold_clp: number;
           created_at: string;
           updated_at: string;
         };
