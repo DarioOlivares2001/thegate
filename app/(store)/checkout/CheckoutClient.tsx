@@ -57,6 +57,9 @@ function normalizeStoredPhoneForInput(raw: string): string {
   return compact.slice(0, 40);
 }
 
+// Sin uso mientras la región esté fija a FIXED_REGION (cobertura local). Se deja
+// intacta para el clon a otros nichos: volver a recorrerla en el <FormSelect> de región.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CHILE_REGIONS = [
   "Arica y Parinacota",
   "Tarapacá",
@@ -78,13 +81,7 @@ const CHILE_REGIONS = [
 
 /** Cobertura inicial: comunas por región (select dependiente). Otras regiones usan comuna en texto libre. */
 const COMMUNES_BY_REGION: Record<string, readonly string[]> = {
-  "Libertador General Bernardo O'Higgins": [
-    "Rancagua",
-    "Machalí",
-    "Graneros",
-    "San Francisco de Mostazal",
-    "Codegua",
-  ],
+  "Libertador General Bernardo O'Higgins": ["Rancagua", "Machalí", "Graneros"],
   "Metropolitana de Santiago": [
     "Santiago",
     "Providencia",
@@ -95,6 +92,16 @@ const COMMUNES_BY_REGION: Record<string, readonly string[]> = {
     "La Florida",
   ],
 };
+
+/**
+ * Cobertura fija de esta versión de PonkyBonk (tienda local, solo O'Higgins).
+ * Para clonar a otro nicho a nivel nacional: volver a mostrar el <FormSelect>
+ * de región (recorriendo CHILE_REGIONS, que se deja sin uso pero intacto más
+ * abajo) y cambiar el estado inicial del form de `region: FIXED_REGION` a
+ * `region: ""`.
+ */
+const FIXED_REGION = "Libertador General Bernardo O'Higgins" as const;
+const ALLOWED_COMMUNES: readonly string[] = COMMUNES_BY_REGION[FIXED_REGION] ?? [];
 
 function regionHasCommuneSelect(region: string): boolean {
   return Object.prototype.hasOwnProperty.call(COMMUNES_BY_REGION, region);
@@ -389,7 +396,7 @@ export function CheckoutClient({ shippingCostClp, freeShippingThresholdClp }: Ch
     phone: CHILE_WA_DEFAULT,
     address: "",
     city: "",
-    region: "",
+    region: FIXED_REGION,
     referencia: "",
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -436,8 +443,13 @@ export function CheckoutClient({ shippingCostClp, freeShippingThresholdClp }: Ch
           ...(j.defaultAddress
             ? {
                 address: prev.address.trim() ? prev.address : j.defaultAddress.address,
-                city: prev.city.trim() ? prev.city : j.defaultAddress.city,
-                region: prev.region.trim() ? prev.region : j.defaultAddress.region,
+                // La región queda fija (cobertura solo O'Higgins): el prefill nunca la pisa,
+                // aunque la dirección guardada del cliente sea de otra región.
+                city: prev.city.trim()
+                  ? prev.city
+                  : ALLOWED_COMMUNES.includes(j.defaultAddress.city)
+                    ? j.defaultAddress.city
+                    : "",
                 referencia: prev.referencia.trim()
                   ? prev.referencia
                   : (j.defaultAddress.referencia ?? ""),
@@ -535,16 +547,6 @@ export function CheckoutClient({ shippingCostClp, freeShippingThresholdClp }: Ch
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
       if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
-  }
-
-  function handleRegionChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const next = e.target.value;
-    setForm((prev) => ({ ...prev, region: next, city: "" }));
-    setErrors((prev) => ({
-      ...prev,
-      region: undefined,
-      city: undefined,
-    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -822,21 +824,12 @@ export function CheckoutClient({ shippingCostClp, freeShippingThresholdClp }: Ch
               </p>
             ) : null}
 
-            <FormSelect
+            <Input
               label="Región"
-              required
-              value={form.region}
-              onChange={handleRegionChange}
-              error={errors.region}
-              autoComplete="address-level1"
-            >
-              <option value="">Selecciona una región…</option>
-              {CHILE_REGIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </FormSelect>
+              value={FIXED_REGION}
+              disabled
+              helperText="Por ahora despachamos solo en la Región de O'Higgins."
+            />
 
             {regionHasCommuneSelect(form.region) ? (
               <FormSelect
