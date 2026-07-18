@@ -31,7 +31,7 @@ export async function sendReviewNotification(payload: ReviewNotificationPayload)
     branding: {
       storeName: settings.store_name,
       logoUrl: settings.logo_url || settings.logo_square_url || "",
-      contactEmail: settings.contact_email || process.env.STORE_CONTACT_EMAIL || "",
+      contactEmail: settings.contact_email || "",
       instagramUrl: settings.support_instagram || "",
       tiktokUrl: settings.support_tiktok || "",
     },

@@ -62,6 +62,7 @@ export function getOrderAdminHtml(payload: Payload) {
   const storeName = escapeHtml(payload.branding?.storeName || "PonkyBonk");
   const logoUrl = String(payload.branding?.logoUrl ?? "").trim();
   const contactEmail = escapeHtml(payload.branding?.contactEmail || "");
+  const contactLine = contactEmail ? `<div>Contacto: ${contactEmail}</div>` : "";
   const instagramUrl = String(payload.branding?.instagramUrl ?? "").trim();
   const tiktokUrl = String(payload.branding?.tiktokUrl ?? "").trim();
   const status = statusLabel(payload.orderStatus);
@@ -134,7 +135,7 @@ export function getOrderAdminHtml(payload: Payload) {
             </tr>
             <tr>
               <td style="padding:16px 20px;background:#fafafa;font-size:12px;color:#6b7280;">
-                <div>Contacto: ${contactEmail || "No configurado"}</div>
+                ${contactLine}
                 <div style="margin-top:6px;">
                   ${instagramUrl ? `<a href="${escapeHtml(instagramUrl)}" style="color:${BRAND_PRIMARY};text-decoration:none;margin-right:10px;">Instagram</a>` : ""}
                   ${tiktokUrl ? `<a href="${escapeHtml(tiktokUrl)}" style="color:${BRAND_PRIMARY};text-decoration:none;">TikTok</a>` : ""}
