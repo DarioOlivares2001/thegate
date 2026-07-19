@@ -14,71 +14,6 @@ export const revalidate = 0;
 
 type ProductVariant = Database["public"]["Tables"]["product_variants"]["Row"];
 
-// ─── Mock reviews ─────────────────────────────────────────────────────────────
-
-const MOCK_REVIEWS: Review[] = [
-  {
-    id: "r1",
-    product_id: "",
-    order_id: null,
-    author_name: "Catalina M.",
-    author_email: null,
-    rating: 5,
-    comment: "Excelente calidad. Llegaron al tercer día y el packaging es increíble. La talla fue perfecta siguiendo la guía.",
-    photo_url: null,
-    verified: true,
-    active: true,
-    status: "approved",
-    created_at: "2026-03-15T10:00:00Z",
-    updated_at: "2026-03-15T10:00:00Z",
-  },
-  {
-    id: "r2",
-    product_id: "",
-    order_id: null,
-    author_name: "Diego V.",
-    author_email: null,
-    rating: 5,
-    comment: "Las uso todos los días para ir a la oficina. Comodísimas y se ven mucho más caras de lo que son.",
-    photo_url: null,
-    verified: true,
-    active: true,
-    status: "approved",
-    created_at: "2026-03-08T14:30:00Z",
-    updated_at: "2026-03-08T14:30:00Z",
-  },
-  {
-    id: "r3",
-    product_id: "",
-    order_id: null,
-    author_name: "Valentina R.",
-    author_email: null,
-    rating: 4,
-    comment: "Muy buena calidad. Le doy 4 estrellas porque esperaba un poco más de amortiguación en el talón, pero en general estoy muy contenta.",
-    photo_url: null,
-    verified: true,
-    active: true,
-    status: "approved",
-    created_at: "2026-02-27T09:15:00Z",
-    updated_at: "2026-02-27T09:15:00Z",
-  },
-  {
-    id: "r4",
-    product_id: "",
-    order_id: null,
-    author_name: "Sebastián L.",
-    author_email: null,
-    rating: 5,
-    comment: "Compré el color gris carbón y es impresionante. El acabado mate es premium.",
-    photo_url: null,
-    verified: false,
-    active: true,
-    status: "approved",
-    created_at: "2026-02-10T18:00:00Z",
-    updated_at: "2026-02-10T18:00:00Z",
-  },
-];
-
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
 async function getProduct(slug: string): Promise<Product | null> {
@@ -125,11 +60,10 @@ async function getReviews(productId: string): Promise<Review[]> {
       .eq("active", true)
       .eq("status", "approved")
       .order("created_at", { ascending: false });
-    if (data?.length) return data as Review[];
+    return (data ?? []) as Review[];
   } catch {
-    // DB not configured yet
+    return [];
   }
-  return MOCK_REVIEWS;
 }
 
 async function getUpsellCandidates(excludeId: string): Promise<Product[]> {

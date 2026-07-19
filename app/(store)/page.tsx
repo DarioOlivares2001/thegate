@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Hero } from "@/components/store/Hero";
 import { Button } from "@/components/ui/Button";
 import { BentoGrid } from "@/components/store/BentoGrid";
-import { SocialProof } from "@/components/store/SocialProof";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 import { resolveLandingBentoSections } from "@/lib/store/landing-home-catalog";
 import { formatPrice } from "@/lib/utils/format";
@@ -146,8 +145,6 @@ export default async function HomePage() {
           </div>
         </section>
       ) : null}
-
-      <SocialProof />
 
       <section className="mx-auto w-full max-w-7xl border-t border-[var(--color-border)] px-4 py-14 sm:px-6 lg:px-8">
         <p className="mx-auto max-w-2xl text-center text-base font-medium text-[var(--color-text)] sm:text-lg">

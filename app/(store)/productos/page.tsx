@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { performance } from "node:perf_hooks";
 import { MOCK_PRODUCTS } from "@/lib/utils/mock-products";
 import { ProductsClient } from "./ProductsClient";
-import { SocialProofToast } from "@/components/store/SocialProofToast";
 import type { Product } from "@/lib/supabase/types";
 
 export const metadata: Metadata = {
@@ -68,10 +67,5 @@ export default async function ProductosPage() {
     console.log(`${PERF_PREFIX} total server ms:`, Math.round(totalMs));
   }
 
-  return (
-    <>
-      <ProductsClient initialProducts={products} />
-      <SocialProofToast products={products.map((p) => p.name)} />
-    </>
-  );
+  return <ProductsClient initialProducts={products} />;
 }
