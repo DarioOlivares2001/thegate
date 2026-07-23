@@ -9,6 +9,8 @@ import {
 import { FontSelectField } from "./FontSelectField";
 import { ThemeLivePreview } from "./ThemeLivePreview";
 import { HeroBannerSection } from "./HeroBannerSection";
+import { FaviconUploadSection } from "./FaviconUploadSection";
+import { LogoUploadField } from "./LogoUploadField";
 import { ConfigTabs } from "./ConfigTabs";
 import { SaveSettingsForm } from "./SaveSettingsForm";
 
@@ -104,15 +106,24 @@ async function saveSettingsAction(formData: FormData): Promise<{ error?: string;
     : DEFAULT_STORE_SETTINGS.navbar_menu_position;
   const validHeroOverlayMode = read("hero_overlay_mode") === "auto" ? "auto" : "manual";
 
-  // Leemos primero valores submitteados para evitar sobrescribir URL mobile con string vacío.
+  // Leemos primero valores submitteados para evitar sobrescribir URLs de assets con string vacío
+  // (los hidden inputs de HeroBannerSection/FaviconUploadSection/LogoUploadField solo cambian
+  // cuando el admin sube un archivo nuevo; si no subió nada, el valor guardado debe persistir).
   const submittedDesktopUrl = read("hero_banner_desktop_url");
   const submittedMobileUrl = read("hero_banner_mobile_url");
+  const submittedLogoUrl = read("logo_url");
+  const submittedLogoSquareUrl = read("logo_square_url");
+  const submittedFaviconUrl = read("favicon_url");
+  const submittedAppleIconUrl = read("apple_icon_url");
+  const submittedPwaIconUrl = read("pwa_icon_512_url");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createAdminClient() as any;
   const { data: existingRows } = await supabase
     .from("store_settings")
-    .select("id,hero_banner_desktop_url,hero_banner_mobile_url")
+    .select(
+      "id,hero_banner_desktop_url,hero_banner_mobile_url,logo_url,logo_square_url,favicon_url,apple_icon_url,pwa_icon_512_url"
+    )
     .order("updated_at", { ascending: false })
     .limit(50);
 
@@ -126,21 +137,33 @@ async function saveSettingsAction(formData: FormData): Promise<{ error?: string;
     await supabase.from("store_settings").delete().in("id", duplicateIds);
   }
 
-  const persistedDesktopUrl =
-    submittedDesktopUrl ||
-    (existing as { hero_banner_desktop_url?: string | null } | null)?.hero_banner_desktop_url ||
-    "";
-  const persistedMobileUrl =
-    submittedMobileUrl ||
-    (existing as { hero_banner_mobile_url?: string | null } | null)?.hero_banner_mobile_url ||
-    "";
+  type PersistedAssetRow = {
+    hero_banner_desktop_url?: string | null;
+    hero_banner_mobile_url?: string | null;
+    logo_url?: string | null;
+    logo_square_url?: string | null;
+    favicon_url?: string | null;
+    apple_icon_url?: string | null;
+    pwa_icon_512_url?: string | null;
+  };
+  const existingAssets = existing as PersistedAssetRow | null;
+
+  const persistedDesktopUrl = submittedDesktopUrl || existingAssets?.hero_banner_desktop_url || "";
+  const persistedMobileUrl = submittedMobileUrl || existingAssets?.hero_banner_mobile_url || "";
+  const persistedLogoUrl = submittedLogoUrl || existingAssets?.logo_url || "";
+  const persistedLogoSquareUrl = submittedLogoSquareUrl || existingAssets?.logo_square_url || "";
+  const persistedFaviconUrl = submittedFaviconUrl || existingAssets?.favicon_url || "";
+  const persistedAppleIconUrl = submittedAppleIconUrl || existingAssets?.apple_icon_url || "";
+  const persistedPwaIconUrl = submittedPwaIconUrl || existingAssets?.pwa_icon_512_url || "";
 
   const payload = {
     store_name: read("store_name") || DEFAULT_STORE_SETTINGS.store_name,
     store_tagline: read("store_tagline"),
-    logo_url: read("logo_url"),
-    logo_square_url: read("logo_square_url"),
-    favicon_url: read("favicon_url"),
+    logo_url: persistedLogoUrl,
+    logo_square_url: persistedLogoSquareUrl,
+    favicon_url: persistedFaviconUrl,
+    apple_icon_url: persistedAppleIconUrl,
+    pwa_icon_512_url: persistedPwaIconUrl,
     brand_text_color: read("brand_text_color") || DEFAULT_STORE_SETTINGS.brand_text_color,
     navbar_background_color:
       read("navbar_background_color") || DEFAULT_STORE_SETTINGS.navbar_background_color,
@@ -302,12 +325,11 @@ export default async function ConfiguracionPage() {
               <option value="logo_and_text">Logo + texto</option>
             </select>
           </label>
-          <Field
-            label="Favicon URL"
-            name="favicon_url"
-            type="url"
-            defaultValue={settings.favicon_url}
-            placeholder="https://..."
+          <FaviconUploadSection
+            formId="store-settings-form"
+            initialFaviconUrl={settings.favicon_url}
+            initialAppleIconUrl={settings.apple_icon_url}
+            initialPwaIconUrl={settings.pwa_icon_512_url}
           />
           <Field
             label="Tamaño logo desktop (px)"
@@ -486,19 +508,21 @@ export default async function ConfiguracionPage() {
           defaultValue={settings.store_tagline}
           placeholder="Todo para gatos felices"
         />
-        <Field
-          label="URL logo horizontal"
-          name="logo_url"
-          type="url"
-          defaultValue={settings.logo_url}
-          placeholder="https://..."
+        <LogoUploadField
+          formId="store-settings-form"
+          fieldName="logo_url"
+          label="Logo horizontal"
+          kind="horizontal"
+          initialUrl={settings.logo_url}
+          helperText="Wordmark/logo ancho, para navbar y footer."
         />
-        <Field
-          label="URL logo cuadrado"
-          name="logo_square_url"
-          type="url"
-          defaultValue={settings.logo_square_url}
-          placeholder="https://..."
+        <LogoUploadField
+          formId="store-settings-form"
+          fieldName="logo_square_url"
+          label="Logo cuadrado"
+          kind="square"
+          initialUrl={settings.logo_square_url}
+          helperText="Isotipo cuadrado, para el sidebar del admin y compartir en redes."
         />
       </div>
 

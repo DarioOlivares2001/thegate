@@ -26,6 +26,17 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description: settings.store_tagline || "La mejor experiencia de compra online del país.",
     metadataBase: new URL(getPublicSiteUrl()),
+    // Dinámico desde store_settings (subido en /admin/configuracion), no un
+    // archivo estático — cada clon de la tienda tiene su propio favicon.
+    // Si no hay nada configurado todavía, no se emite ningún ícono.
+    icons: {
+      ...(settings.favicon_url
+        ? { icon: [{ url: settings.favicon_url, sizes: "32x32", type: "image/png" }] }
+        : {}),
+      ...(settings.apple_icon_url
+        ? { apple: [{ url: settings.apple_icon_url, sizes: "180x180", type: "image/png" }] }
+        : {}),
+    },
   };
 }
 

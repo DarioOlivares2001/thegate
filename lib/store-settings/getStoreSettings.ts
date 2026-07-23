@@ -7,6 +7,10 @@ export interface StoreSettingsView {
   logo_url: string;
   logo_square_url: string;
   favicon_url: string;
+  /** 180x180, para apple-touch-icon. Generado junto a favicon_url desde la misma imagen subida. */
+  apple_icon_url: string;
+  /** 512x512, referenciado por app/manifest.ts (instalación PWA/Android). */
+  pwa_icon_512_url: string;
   brand_text_color: string;
   navbar_background_color: string;
   navbar_text_color: string;
@@ -64,6 +68,8 @@ export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
   logo_url: "",
   logo_square_url: "",
   favicon_url: "",
+  apple_icon_url: "",
+  pwa_icon_512_url: "",
   brand_text_color: "#111111",
   navbar_background_color: "#FFFFFF",
   navbar_text_color: "#111111",
@@ -171,6 +177,10 @@ function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
     logo_url: row.logo_url ?? DEFAULT_STORE_SETTINGS.logo_url,
     logo_square_url: row.logo_square_url ?? DEFAULT_STORE_SETTINGS.logo_square_url,
     favicon_url: row.favicon_url ?? DEFAULT_STORE_SETTINGS.favicon_url,
+    apple_icon_url:
+      (row as Record<string, unknown>).apple_icon_url?.toString?.() ?? DEFAULT_STORE_SETTINGS.apple_icon_url,
+    pwa_icon_512_url:
+      (row as Record<string, unknown>).pwa_icon_512_url?.toString?.() ?? DEFAULT_STORE_SETTINGS.pwa_icon_512_url,
     brand_text_color: row.brand_text_color ?? row.primary_color ?? DEFAULT_STORE_SETTINGS.brand_text_color,
     navbar_background_color:
       row.navbar_background_color ??

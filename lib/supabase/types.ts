@@ -187,6 +187,8 @@ export interface Database {
           logo_url: string | null;
           logo_square_url: string | null;
           favicon_url: string | null;
+          apple_icon_url: string | null;
+          pwa_icon_512_url: string | null;
           brand_text_color: string;
           navbar_background_color: string;
           navbar_text_color: string;
