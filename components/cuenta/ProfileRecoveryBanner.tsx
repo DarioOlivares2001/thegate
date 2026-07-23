@@ -61,7 +61,10 @@ export function ProfileRecoveryBanner({
             <p className="mt-2 text-sm leading-relaxed text-[var(--color-text-muted)]">
               Encontramos datos de tus compras anteriores. Confírmalos para comprar más rápido la próxima vez.
             </p>
-            <dl className="mt-4 space-y-2 rounded-[var(--radius-md)] border border-[var(--color-border)]/80 bg-[var(--color-background)]/90 px-3.5 py-3 text-sm">
+            <dl
+              className="mt-4 space-y-2 rounded-[var(--radius-md)] border border-[var(--color-border)]/80 bg-[var(--color-background)]/90 px-3.5 py-3 text-sm"
+              data-clarity-mask="true"
+            >
               {snapshot.nombre?.trim() ? (
                 <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-2">
                   <dt className="shrink-0 font-medium text-[var(--color-text-muted)]">Nombre</dt>

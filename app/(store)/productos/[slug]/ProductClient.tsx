@@ -400,6 +400,11 @@ export function ProductClient({ product, reviews, variants, upsellSuggestions = 
   }, [displayPrice, variantSelectionKey]);
 
   useEffect(() => {
+    pixelEvents.viewContent(product);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
+
+  useEffect(() => {
     return () => {
       if (ratingAdvanceTimerRef.current) {
         window.clearTimeout(ratingAdvanceTimerRef.current);

@@ -48,7 +48,9 @@ export default async function CuentaPedidosPage() {
   return (
     <main className="mx-auto flex min-h-[70vh] w-full max-w-4xl flex-col px-4 py-12">
       <h1 className="font-display text-2xl font-bold text-[var(--color-text)] sm:text-3xl">Mis pedidos</h1>
-      <p className="mt-2 text-sm text-[var(--color-text-muted)]">Pedidos asociados a {session.email}</p>
+      <p className="mt-2 text-sm text-[var(--color-text-muted)]" data-clarity-mask="true">
+        Pedidos asociados a {session.email}
+      </p>
 
       <section className="mt-6 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
         <div className="overflow-x-auto">

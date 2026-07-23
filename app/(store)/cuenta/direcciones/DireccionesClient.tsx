@@ -347,7 +347,7 @@ export function DireccionesClient() {
           No tienes direcciones guardadas. Agrega una para usarla en el checkout.
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-3" data-clarity-mask="true">
           {list.map((d) => (
             <li
               key={d.id}

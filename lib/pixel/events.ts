@@ -1,9 +1,18 @@
 import type { CartItem } from "@/lib/cart/store";
-import type { Order, Product } from "@/lib/supabase/types";
+import type { Product } from "@/lib/supabase/types";
+import { toPixelContentId } from "@/lib/pixel/contentId";
+import { sumProductsValue, type PixelLineItem } from "@/lib/pixel/productsValue";
 
 declare global {
-  function fbq(event: "track", name: string, params?: Record<string, unknown>): void;
+  function fbq(
+    event: "track",
+    name: string,
+    params?: Record<string, unknown>,
+    options?: { eventID?: string }
+  ): void;
 }
+
+const CURRENCY = "CLP";
 
 export const pixelEvents = {
   pageView() {
@@ -14,43 +23,59 @@ export const pixelEvents = {
   viewContent(product: Product) {
     if (typeof fbq === "undefined") return;
     fbq("track", "ViewContent", {
-      content_ids: [product.id],
-      content_name: product.name,
+      content_ids: [toPixelContentId(product.id)],
       content_type: "product",
-      value: product.price / 100,
-      currency: "CLP",
+      content_name: product.name,
+      value: sumProductsValue([{ price: product.price, quantity: 1 }]),
+      currency: CURRENCY,
     });
   },
 
   addToCart(product: Product, quantity: number) {
     if (typeof fbq === "undefined") return;
     fbq("track", "AddToCart", {
-      content_ids: [product.id],
-      content_name: product.name,
+      content_ids: [toPixelContentId(product.id)],
       content_type: "product",
-      value: (product.price * quantity) / 100,
-      currency: "CLP",
+      content_name: product.name,
+      value: sumProductsValue([{ price: product.price, quantity }]),
+      currency: CURRENCY,
     });
   },
 
   initiateCheckout(cart: CartItem[]) {
     if (typeof fbq === "undefined") return;
     fbq("track", "InitiateCheckout", {
-      content_ids: cart.map((i) => i.product_id),
+      content_ids: cart.map((i) => toPixelContentId(i.product_id)),
+      content_type: "product",
       num_items: cart.reduce((acc, i) => acc + i.quantity, 0),
-      value: cart.reduce((acc, i) => acc + i.price * i.quantity, 0) / 100,
-      currency: "CLP",
+      // Solo valor de productos (sin envío) — mismo criterio que Purchase.
+      value: sumProductsValue(cart),
+      currency: CURRENCY,
     });
   },
 
-  purchase(order: Order) {
+  /**
+   * Purchase del NAVEGADOR — complementario al de servidor (lib/pixel/capi.ts,
+   * que es la fuente de verdad y no depende de que el cliente llegue acá).
+   * Usa el mismo `eventId` (display_code de la orden) que el servidor para
+   * que Meta deduplique Pixel + CAPI como un solo evento.
+   *
+   * `items` son los ítems reales de la orden pagada; el value se calcula acá
+   * mismo con `sumProductsValue` — igual que InitiateCheckout, sin envío.
+   */
+  purchase(params: { items: PixelLineItem[]; contentIds: string[]; orderId: string; eventId: string }) {
     if (typeof fbq === "undefined") return;
-    const items = order.items as Array<{ product_id: string }>;
-    fbq("track", "Purchase", {
-      content_ids: items.map((i) => i.product_id),
-      value: order.total / 100,
-      currency: "CLP",
-      order_id: order.order_number.toString(),
-    });
+    fbq(
+      "track",
+      "Purchase",
+      {
+        content_ids: params.contentIds.map(toPixelContentId),
+        content_type: "product",
+        value: sumProductsValue(params.items),
+        currency: CURRENCY,
+        order_id: params.orderId,
+      },
+      { eventID: params.eventId }
+    );
   },
 };

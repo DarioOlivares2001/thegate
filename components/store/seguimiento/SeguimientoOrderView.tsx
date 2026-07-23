@@ -61,7 +61,7 @@ export function SeguimientoOrderView({ order }: { order: PublicOrderTracking }) 
           <h2 className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
             Cliente
           </h2>
-          <dl className="mt-4 space-y-3 text-sm">
+          <dl className="mt-4 space-y-3 text-sm" data-clarity-mask="true">
             <div>
               <dt className="text-xs text-[var(--color-text-muted)]">Nombre</dt>
               <dd className="mt-0.5 font-medium text-[var(--color-text)]">{order.customer_name}</dd>

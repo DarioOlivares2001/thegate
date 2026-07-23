@@ -81,15 +81,19 @@ export interface Database {
           total: number;
           flow_token: string | null;
           flow_order: string | null;
+          display_code: string | null;
           notes: string | null;
           stock_discounted: boolean;
+          /** IP y user-agent del navegador, capturados en /api/flow/create para Meta CAPI. */
+          client_ip_address: string | null;
+          client_user_agent: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Omit<
           Database["public"]["Tables"]["orders"]["Row"],
-          "id" | "order_number" | "created_at" | "updated_at" | "stock_discounted"
-        > & { stock_discounted?: boolean };
+          "id" | "order_number" | "created_at" | "updated_at" | "stock_discounted" | "display_code"
+        > & { stock_discounted?: boolean; display_code?: string | null };
         Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
       };
       reviews: {
@@ -218,6 +222,13 @@ export interface Database {
           shipping_cost_clp: number;
           shipping_free_threshold_clp: number;
           enable_whatsapp_fab: boolean;
+          meta_pixel_id: string | null;
+          /** Secreto — nunca se manda al cliente ni se muestra en texto plano en el admin. */
+          meta_capi_access_token: string | null;
+          meta_pixel_enabled: boolean;
+          meta_test_event_code: string | null;
+          clarity_project_id: string | null;
+          clarity_enabled: boolean;
           created_at: string;
           updated_at: string;
         };

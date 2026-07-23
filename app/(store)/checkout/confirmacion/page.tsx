@@ -7,6 +7,9 @@ import { motion } from "framer-motion";
 import { MessageCircle } from "lucide-react";
 import { useCartStore } from "@/lib/cart/store";
 import { Button } from "@/components/ui/Button";
+import { pixelEvents } from "@/lib/pixel/events";
+
+const PIXEL_PURCHASE_SENT_PREFIX = "meta_purchase_sent_";
 
 const POST_COMPRA_STORAGE = "cuenta_postcompra";
 const POST_COMPRA_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -91,6 +94,47 @@ function LoadingState() {
   );
 }
 
+// ─── Meta Pixel: Purchase del navegador (complementario al de servidor) ────────
+
+/**
+ * Dispara Purchase una sola vez por orden, aunque se recargue la página de
+ * gracias — se marca en sessionStorage antes de disparar. Usa display_code
+ * como event_id, el mismo que usa el servidor (lib/pixel/capi.ts) para que
+ * Meta deduplique Pixel + CAPI. El value lo calcula pixelEvents.purchase con
+ * sumProductsValue a partir de los ítems reales (sin envío).
+ */
+function firePurchaseOnce(data: {
+  displayCode?: string | null;
+  items?: Array<{ product_id?: string; price?: number; quantity?: number }>;
+}) {
+  const eventId = data.displayCode?.trim();
+  if (!eventId) return;
+
+  const storageKey = `${PIXEL_PURCHASE_SENT_PREFIX}${eventId}`;
+  try {
+    if (sessionStorage.getItem(storageKey)) return;
+    sessionStorage.setItem(storageKey, "1");
+  } catch {
+    // sessionStorage no disponible (modo privado, etc.): igual disparamos.
+    // Preferible un duplicado ocasional a perder el evento por completo.
+  }
+
+  const orderItems = Array.isArray(data.items) ? data.items : [];
+  const contentIds = orderItems
+    .map((i) => i?.product_id)
+    .filter((id): id is string => Boolean(id));
+
+  pixelEvents.purchase({
+    contentIds,
+    items: orderItems.map((i) => ({
+      price: Number(i?.price) || 0,
+      quantity: Number(i?.quantity) || 0,
+    })),
+    orderId: eventId,
+    eventId,
+  });
+}
+
 // ─── Main content ─────────────────────────────────────────────────────────────
 
 function ConfirmationContent() {
@@ -153,11 +197,17 @@ function ConfirmationContent() {
 
         if (!res.ok) { setPaymentStatus("failed"); return; }
 
-        const { status } = (await res.json()) as { status?: string };
+        const data = (await res.json()) as {
+          status?: string;
+          displayCode?: string | null;
+          items?: Array<{ product_id?: string; price?: number; quantity?: number }>;
+        };
+        const { status } = data;
 
         if (status === "paid") {
           if (!clearRef.current) { clearRef.current = true; clear(); }
           setPaymentStatus("paid");
+          firePurchaseOnce(data);
           return;
         }
 

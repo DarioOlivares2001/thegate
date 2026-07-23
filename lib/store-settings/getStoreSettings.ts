@@ -47,6 +47,15 @@ export interface StoreSettingsView {
   shipping_free_threshold_clp: number;
   /** Botón flotante de WhatsApp (contacto general), independiente de enable_whatsapp_checkout. */
   enable_whatsapp_fab: boolean;
+  meta_pixel_id: string;
+  /** Secreto — solo se lee en servidor (lib/pixel/capi.ts). Nunca se manda al bundle del cliente. */
+  meta_capi_access_token: string;
+  meta_pixel_enabled: boolean;
+  /** Opcional, solo mientras se prueba en Meta Events Manager. */
+  meta_test_event_code: string;
+  /** Microsoft Clarity (mapas de calor + grabaciones). Sin secreto: el Project ID no es sensible. */
+  clarity_project_id: string;
+  clarity_enabled: boolean;
 }
 
 export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
@@ -90,6 +99,12 @@ export const DEFAULT_STORE_SETTINGS: StoreSettingsView = {
   shipping_cost_clp: 3_990,
   shipping_free_threshold_clp: 30_000,
   enable_whatsapp_fab: true,
+  meta_pixel_id: "",
+  meta_capi_access_token: "",
+  meta_pixel_enabled: false,
+  meta_test_event_code: "",
+  clarity_project_id: "",
+  clarity_enabled: false,
 };
 
 function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
@@ -230,6 +245,24 @@ function normalizeSettings(row: StoreSettings | null): StoreSettingsView {
     enable_whatsapp_fab: asBoolean(
       (row as Record<string, unknown>).enable_whatsapp_fab,
       DEFAULT_STORE_SETTINGS.enable_whatsapp_fab
+    ),
+    meta_pixel_id: (row as Record<string, unknown>).meta_pixel_id?.toString?.() ?? DEFAULT_STORE_SETTINGS.meta_pixel_id,
+    meta_capi_access_token:
+      (row as Record<string, unknown>).meta_capi_access_token?.toString?.() ??
+      DEFAULT_STORE_SETTINGS.meta_capi_access_token,
+    meta_pixel_enabled: asBoolean(
+      (row as Record<string, unknown>).meta_pixel_enabled,
+      DEFAULT_STORE_SETTINGS.meta_pixel_enabled
+    ),
+    meta_test_event_code:
+      (row as Record<string, unknown>).meta_test_event_code?.toString?.() ??
+      DEFAULT_STORE_SETTINGS.meta_test_event_code,
+    clarity_project_id:
+      (row as Record<string, unknown>).clarity_project_id?.toString?.() ??
+      DEFAULT_STORE_SETTINGS.clarity_project_id,
+    clarity_enabled: asBoolean(
+      (row as Record<string, unknown>).clarity_enabled,
+      DEFAULT_STORE_SETTINGS.clarity_enabled
     ),
   };
 }

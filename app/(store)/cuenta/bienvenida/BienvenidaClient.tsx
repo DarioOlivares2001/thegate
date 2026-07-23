@@ -88,13 +88,15 @@ export function BienvenidaClient({
           <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-zinc-900 sm:text-3xl">
             ¡Ya eres parte de {brand}!
           </h1>
-          <p className="mt-3 text-sm font-medium text-zinc-600 sm:text-base">{greeting}</p>
+          <p className="mt-3 text-sm font-medium text-zinc-600 sm:text-base" data-clarity-mask="true">
+            {greeting}
+          </p>
           <p className="mt-4 text-sm leading-relaxed text-zinc-500 sm:text-[15px]">
             Desde ahora podrás acceder a beneficios exclusivos, repetir compras más rápido y guardar tus datos para
             futuras compras.
           </p>
           {displayEmail ? (
-            <p className="mt-3 text-xs text-zinc-400">
+            <p className="mt-3 text-xs text-zinc-400" data-clarity-mask="true">
               Cuenta asociada a <span className="font-medium text-zinc-500">{displayEmail}</span>
             </p>
           ) : null}

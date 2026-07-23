@@ -772,8 +772,8 @@ export function CheckoutClient({ shippingCostClp, freeShippingThresholdClp }: Ch
             Volver al carrito
           </Link>
 
-          {/* Contact */}
-          <section className="flex flex-col gap-4">
+          {/* Contact — data-clarity-mask: nombre/email/teléfono nunca se suben a Clarity */}
+          <section className="flex flex-col gap-4" data-clarity-mask="true">
             <h2 className="font-display text-lg font-bold text-[var(--color-text)]">
               Datos de contacto
             </h2>
@@ -809,8 +809,8 @@ export function CheckoutClient({ shippingCostClp, freeShippingThresholdClp }: Ch
             </div>
           </section>
 
-          {/* Shipping */}
-          <section className="flex flex-col gap-4">
+          {/* Shipping — data-clarity-mask: dirección/comuna/región/referencia nunca se suben a Clarity */}
+          <section className="flex flex-col gap-4" data-clarity-mask="true">
             <h2 className="font-display text-lg font-bold text-[var(--color-text)]">
               Datos para coordinar tu entrega
             </h2>

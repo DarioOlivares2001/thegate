@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { clsx } from "clsx";
+import { useConfigTabsContext } from "./SaveSettingsForm";
 
 type TabKey = "identidad" | "contacto" | "ventas";
 
@@ -20,7 +20,9 @@ export function ConfigTabs({
   contacto: React.ReactNode;
   ventas: React.ReactNode;
 }) {
-  const [active, setActive] = useState<TabKey>("identidad");
+  // Estado de la pestaña activa vive en SaveSettingsForm (no acá), para que
+  // el submit pueda cambiar de pestaña si encuentra un campo inválido oculto.
+  const { activeTab, setActiveTab } = useConfigTabsContext();
 
   return (
     <div>
@@ -29,10 +31,10 @@ export function ConfigTabs({
           <button
             key={t.key}
             type="button"
-            onClick={() => setActive(t.key)}
+            onClick={() => setActiveTab(t.key)}
             className={clsx(
               "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-              active === t.key
+              activeTab === t.key
                 ? "border-zinc-900 text-zinc-900"
                 : "border-transparent text-zinc-500 hover:text-zinc-700"
             )}
@@ -47,10 +49,20 @@ export function ConfigTabs({
         Es un único <form> con un único submit: si un panel se desmontara al
         cambiar de tab, sus inputs desaparecerían de FormData y guardar desde
         otra pestaña borraría esos campos.
+
+        `data-tab-panel` es cómo SaveSettingsForm ubica a qué pestaña
+        pertenece un campo inválido (closest("[data-tab-panel]")) para
+        cambiarse a esa pestaña antes de pedirle al navegador que lo enfoque.
       */}
-      <div className={active === "identidad" ? undefined : "hidden"}>{identidad}</div>
-      <div className={active === "contacto" ? undefined : "hidden"}>{contacto}</div>
-      <div className={active === "ventas" ? undefined : "hidden"}>{ventas}</div>
+      <div data-tab-panel="identidad" className={activeTab === "identidad" ? undefined : "hidden"}>
+        {identidad}
+      </div>
+      <div data-tab-panel="contacto" className={activeTab === "contacto" ? undefined : "hidden"}>
+        {contacto}
+      </div>
+      <div data-tab-panel="ventas" className={activeTab === "ventas" ? undefined : "hidden"}>
+        {ventas}
+      </div>
     </div>
   );
 }

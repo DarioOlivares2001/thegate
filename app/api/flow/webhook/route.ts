@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { confirmPaidOrderAndDecrementStock } from "@/lib/orders/confirmPaidAndDecrementStock";
 import { revalidateAfterStockChange } from "@/lib/orders/revalidateAfterStockChange";
 import { sendOrderNotification } from "@/lib/email/sendOrderNotification";
+import { sendMetaCapiPurchase } from "@/lib/pixel/capi";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const FLOW_API_URL = process.env.FLOW_API_URL ?? "https://sandbox.flow.cl/api";
 const FLOW_API_KEY = process.env.FLOW_API_KEY ?? "";
@@ -159,19 +161,27 @@ export async function POST(request: NextRequest) {
       finalStatus: stockRes.finalStatus,
     });
 
-    // Emails admin + cliente — solo en el primer webhook de pago (idempotente).
+    // Emails admin + cliente, y Purchase de Meta CAPI — solo en el primer
+    // webhook de pago (idempotente vía alreadyDiscounted).
     if (!stockRes.alreadyDiscounted) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let fullOrder: any = null;
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: fullOrder } = await (admin as any)
+        const { data } = await (admin as any)
           .from("orders")
           .select(
-            "order_number, customer_name, customer_email, customer_phone, items, subtotal, shipping_cost, total, shipping_address"
+            "order_number, display_code, customer_name, customer_email, customer_phone, items, subtotal, shipping_cost, total, shipping_address, client_ip_address, client_user_agent"
           )
           .eq("id", orderRow.id)
           .single();
+        fullOrder = data;
+      } catch (fetchError) {
+        console.error("[flow-webhook] error leyendo la orden para notificaciones:", fetchError);
+      }
 
-        if (fullOrder) {
+      if (fullOrder) {
+        try {
           const addr = (fullOrder.shipping_address ?? {}) as Record<string, string>;
           await sendOrderNotification({
             orderNumber: fullOrder.order_number,
@@ -189,9 +199,39 @@ export async function POST(request: NextRequest) {
             shippingCost: fullOrder.shipping_cost,
             total: fullOrder.total,
           });
+        } catch (emailError) {
+          console.error("[flow-webhook] error enviando emails de confirmación:", emailError);
         }
-      } catch (emailError) {
-        console.error("[flow-webhook] error enviando emails de confirmación:", emailError);
+
+        // Meta CAPI Purchase — fuente de verdad server-side, no depende de que
+        // el cliente vuelva a la página de gracias. Un fallo acá nunca debe
+        // romper el webhook (la orden ya quedó 'paid' y con stock descontado).
+        try {
+          const eventId: string | undefined = fullOrder.display_code ?? commerceOrder;
+          if (eventId) {
+            const orderItems = Array.isArray(fullOrder.items) ? fullOrder.items : [];
+            await sendMetaCapiPurchase({
+              eventId,
+              orderId: eventId,
+              contentIds: orderItems
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .map((i: any) => i?.product_id)
+                .filter((id: unknown): id is string => Boolean(id)),
+              // value lo calcula sendMetaCapiPurchase con sumProductsValue (sin envío).
+              items: orderItems.map(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (i: any) => ({ price: Number(i?.price) || 0, quantity: Number(i?.quantity) || 0 })
+              ),
+              eventSourceUrl: `${getPublicSiteUrl()}/checkout/confirmacion?order=${fullOrder.order_number}&display=${encodeURIComponent(eventId)}`,
+              customerEmail: fullOrder.customer_email,
+              customerPhone: fullOrder.customer_phone ?? null,
+              clientIpAddress: fullOrder.client_ip_address ?? null,
+              clientUserAgent: fullOrder.client_user_agent ?? null,
+            });
+          }
+        } catch (capiError) {
+          console.error("[flow-webhook] error enviando Purchase a Meta CAPI:", capiError);
+        }
       }
     }
 

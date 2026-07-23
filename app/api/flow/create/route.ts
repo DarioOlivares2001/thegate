@@ -13,6 +13,7 @@ import {
 } from "@/lib/checkout/recalculateCheckoutOrder";
 import { confirmPaidOrderAndDecrementStock } from "@/lib/orders/confirmPaidAndDecrementStock";
 import { revalidateAfterStockChange } from "@/lib/orders/revalidateAfterStockChange";
+import { sendMetaCapiPurchase } from "@/lib/pixel/capi";
 
 const FLOW_API_URL = process.env.FLOW_API_URL ?? "https://sandbox.flow.cl/api";
 const FLOW_API_KEY = process.env.FLOW_API_KEY ?? "";
@@ -40,13 +41,25 @@ type CheckoutCustomer = {
   referencia?: string;
 };
 
+/** IP real del navegador (primer salto de x-forwarded-for) y user-agent — para Meta CAPI. */
+function extractClientNetworkInfo(request: NextRequest): {
+  ip: string | null;
+  userAgent: string | null;
+} {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const ip = forwardedFor ? forwardedFor.split(",")[0].trim() || null : null;
+  const userAgent = request.headers.get("user-agent");
+  return { ip, userAgent: userAgent?.trim() || null };
+}
+
 function buildOrderInsertPayload(
   customer: CheckoutCustomer,
   items: RecalculatedOrderLine[],
   subtotal: number,
   shippingCost: number,
   total: number,
-  status: "awaiting_payment" | "pending" | "paid"
+  status: "awaiting_payment" | "pending" | "paid",
+  clientNetworkInfo: { ip: string | null; userAgent: string | null }
 ): Database["public"]["Tables"]["orders"]["Insert"] {
   const referencia =
     typeof customer.referencia === "string" ? customer.referencia.trim() : "";
@@ -68,6 +81,8 @@ function buildOrderInsertPayload(
     flow_token: null,
     flow_order: null,
     notes: null,
+    client_ip_address: clientNetworkInfo.ip,
+    client_user_agent: clientNetworkInfo.userAgent,
   };
 }
 
@@ -149,6 +164,7 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
     const settings = await getStoreSettings();
+    const clientNetworkInfo = extractClientNetworkInfo(request);
     const priced = await recalculateCheckoutOrder(admin, body.items);
     if (!priced.ok) {
       return NextResponse.json({ error: priced.error }, { status: priced.status });
@@ -190,7 +206,8 @@ export async function POST(request: NextRequest) {
       subtotal,
       shippingCost,
       total,
-      "awaiting_payment"
+      "awaiting_payment",
+      clientNetworkInfo
     );
 
     // ── Mock mode ─────────────────────────────────────────────────────────────
@@ -201,7 +218,8 @@ export async function POST(request: NextRequest) {
         subtotal,
         shippingCost,
         total,
-        "paid"
+        "paid",
+        clientNetworkInfo
       );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -306,6 +324,28 @@ export async function POST(request: NextRequest) {
       }
 
       const siteUrl = getPublicSiteUrl();
+
+      // Meta CAPI Purchase — mismo gate de idempotencia que el email (alreadyDiscounted).
+      // Un fallo acá nunca debe romper la creación de la orden mock.
+      if (stockRes.ok && !stockRes.alreadyDiscounted) {
+        try {
+          await sendMetaCapiPurchase({
+            eventId: displayCode,
+            orderId: displayCode,
+            contentIds: items.map((i) => i.product_id),
+            // value lo calcula sendMetaCapiPurchase con sumProductsValue (sin envío).
+            items: items.map((i) => ({ price: i.price, quantity: i.quantity })),
+            eventSourceUrl: `${siteUrl}/checkout/confirmacion?order=${orderNumber}&display=${encodeURIComponent(displayCode)}`,
+            customerEmail: customer.email,
+            customerPhone: customer.phone ?? null,
+            clientIpAddress: clientNetworkInfo.ip,
+            clientUserAgent: clientNetworkInfo.userAgent,
+          });
+        } catch (capiError) {
+          console.error("[meta-capi-error] Falló Purchase (mock):", capiError);
+        }
+      }
+
       return NextResponse.json({
         redirectUrl: `${siteUrl}/checkout/confirmacion?order=${orderNumber}&display=${encodeURIComponent(displayCode)}&token=${mockToken}&mock=1`,
         token: mockToken,

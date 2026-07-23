@@ -223,12 +223,14 @@ function Field({
   defaultValue,
   type = "text",
   placeholder,
+  autoComplete = "off",
 }: {
   label: string;
   name: string;
   defaultValue?: string;
   type?: "text" | "url" | "color";
   placeholder?: string;
+  autoComplete?: string;
 }) {
   return (
     <label className="flex flex-col gap-1.5">
@@ -238,6 +240,7 @@ function Field({
         name={name}
         defaultValue={defaultValue}
         placeholder={placeholder}
+        autoComplete={autoComplete}
         className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] placeholder:text-[var(--color-text-secondary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
       />
     </label>
@@ -572,6 +575,7 @@ export default async function ConfiguracionPage() {
           min="0"
           step="1"
           defaultValue={settings.order_number_offset}
+          autoComplete="off"
           className="h-10 w-48 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
         />
         <span className="text-xs text-zinc-500">
@@ -588,6 +592,7 @@ export default async function ConfiguracionPage() {
           min="0"
           step="1"
           defaultValue={settings.shipping_cost_clp}
+          autoComplete="off"
           className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
         />
         <span className="text-xs text-zinc-500">
@@ -603,6 +608,7 @@ export default async function ConfiguracionPage() {
           min="0"
           step="1"
           defaultValue={settings.shipping_free_threshold_clp}
+          autoComplete="off"
           className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
         />
         <span className="text-xs text-zinc-500">

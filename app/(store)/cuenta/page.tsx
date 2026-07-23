@@ -61,8 +61,12 @@ export default async function CuentaIndexPage() {
 
       <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm sm:p-8">
         <h1 className="font-display text-2xl font-bold text-[var(--color-text)] sm:text-3xl">Mi cuenta</h1>
-        <p className="mt-2 text-sm text-[var(--color-text-muted)]">Hola, {nombre}.</p>
-        <p className="text-sm text-[var(--color-text-muted)]">{email}</p>
+        <p className="mt-2 text-sm text-[var(--color-text-muted)]" data-clarity-mask="true">
+          Hola, {nombre}.
+        </p>
+        <p className="text-sm text-[var(--color-text-muted)]" data-clarity-mask="true">
+          {email}
+        </p>
 
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <article className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-background)] p-3">

@@ -12,6 +12,7 @@ import {
   Package,
   Settings,
   MessageSquareQuote,
+  Megaphone,
   Store,
   Menu,
   X,
@@ -56,6 +57,7 @@ const NAV = [
   { label: "Clientes",     href: "/admin/clientes",       icon: Users },
   { label: "Productos",    href: "/admin/productos",      icon: Package },
   { label: "Reseñas",      href: "/admin/resenas",        icon: MessageSquareQuote },
+  { label: "Marketing",    href: "/admin/marketing",      icon: Megaphone },
   { label: "Configuración",href: "/admin/configuracion",  icon: Settings },
 ];
 
