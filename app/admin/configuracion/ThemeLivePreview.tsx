@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { StoreSettingsView } from "@/lib/store-settings/getStoreSettings";
+import { resolveFontCssVar } from "@/lib/fonts/registry";
 
 type ThemeLivePreviewProps = {
   formId: string;
@@ -157,6 +158,9 @@ export function ThemeLivePreview({ formId, initial }: ThemeLivePreviewProps) {
     };
   }, [current]);
 
+  const headingFontVar = resolveFontCssVar(current.font_heading, "var(--font-display)");
+  const bodyFontVar = resolveFontCssVar(current.font_body, "var(--font-sans)");
+
   const brandColor = current.brand_text_color || palette.primary;
   const navBg = current.navbar_background_color || palette.surface;
   const navText = current.navbar_text_color || palette.text;
@@ -194,7 +198,7 @@ export function ThemeLivePreview({ formId, initial }: ThemeLivePreviewProps) {
                   className="truncate"
                   style={{
                     color: brandColor,
-                    fontFamily: `'${current.font_heading}', system-ui, sans-serif`,
+                    fontFamily: headingFontVar,
                     fontWeight: 800,
                     letterSpacing: "-0.04em",
                     fontSize: `calc(1.1rem * ${current.brand_text_scale})`,
@@ -216,7 +220,7 @@ export function ThemeLivePreview({ formId, initial }: ThemeLivePreviewProps) {
           </div>
         </div>
 
-        <div className="space-y-3 p-4" style={{ fontFamily: `'${current.font_body}', system-ui, sans-serif` }}>
+        <div className="space-y-3 p-4" style={{ fontFamily: bodyFontVar }}>
           <button
             type="button"
             className="rounded-md px-4 py-2 text-sm font-semibold text-white"
@@ -233,7 +237,7 @@ export function ThemeLivePreview({ formId, initial }: ThemeLivePreviewProps) {
             <p className="text-xs opacity-70">Producto ejemplo</p>
             <p
               className="mt-1 text-sm font-semibold"
-              style={{ fontFamily: `'${current.font_heading}', system-ui, sans-serif` }}
+              style={{ fontFamily: headingFontVar }}
             >
               Arena premium para gato
             </p>

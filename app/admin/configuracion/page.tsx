@@ -13,32 +13,13 @@ import { FaviconUploadSection } from "./FaviconUploadSection";
 import { LogoUploadField } from "./LogoUploadField";
 import { ConfigTabs } from "./ConfigTabs";
 import { SaveSettingsForm } from "./SaveSettingsForm";
+import { fontNamesForRole } from "@/lib/fonts/registry";
 
 export const metadata: Metadata = { title: "Configuración" };
 
-const HEADING_FONTS = [
-  "Inter",
-  "Poppins",
-  "Montserrat",
-  "Nunito",
-  "Lato",
-  "Roboto",
-  "Playfair Display",
-  "Space Grotesk",
-  "DM Sans",
-  "Outfit",
-];
-
-const BODY_FONTS = [
-  "Inter",
-  "Poppins",
-  "Montserrat",
-  "Nunito",
-  "Lato",
-  "Roboto",
-  "DM Sans",
-  "Outfit",
-];
+// Derivadas del registry: si una fuente no está self-hosteada ahí, el admin no la puede ofrecer.
+const HEADING_FONTS = fontNamesForRole("heading");
+const BODY_FONTS = fontNamesForRole("body");
 
 async function saveSettingsAction(formData: FormData): Promise<{ error?: string; success?: boolean }> {
   "use server";
@@ -84,6 +65,8 @@ async function saveSettingsAction(formData: FormData): Promise<{ error?: string;
   const brandingMode = read("branding_mode");
   const brandPos = read("navbar_brand_position");
   const menuPos = read("navbar_menu_position");
+  const fontHeading = read("font_heading");
+  const fontBody = read("font_body");
 
   const validThemePreset = [
     "minimal_black",
@@ -105,6 +88,15 @@ async function saveSettingsAction(formData: FormData): Promise<{ error?: string;
     ? menuPos
     : DEFAULT_STORE_SETTINGS.navbar_menu_position;
   const validHeroOverlayMode = read("hero_overlay_mode") === "auto" ? "auto" : "manual";
+  // Whitelist derivada del registry: defensa en profundidad si alguien postea
+  // directo al server action saltándose el <select>; el fallback en
+  // buildThemeCssProperties ya cubre esto, pero no queremos persistir basura.
+  const validFontHeading = HEADING_FONTS.includes(fontHeading)
+    ? fontHeading
+    : DEFAULT_STORE_SETTINGS.font_heading;
+  const validFontBody = BODY_FONTS.includes(fontBody)
+    ? fontBody
+    : DEFAULT_STORE_SETTINGS.font_body;
 
   // Leemos primero valores submitteados para evitar sobrescribir URLs de assets con string vacío
   // (los hidden inputs de HeroBannerSection/FaviconUploadSection/LogoUploadField solo cambian
@@ -178,8 +170,8 @@ async function saveSettingsAction(formData: FormData): Promise<{ error?: string;
     brand_text_scale: readBrandScale("brand_text_scale", DEFAULT_STORE_SETTINGS.brand_text_scale),
     navbar_brand_position: validBrandPos,
     navbar_menu_position: validMenuPos,
-    font_heading: read("font_heading") || DEFAULT_STORE_SETTINGS.font_heading,
-    font_body: read("font_body") || DEFAULT_STORE_SETTINGS.font_body,
+    font_heading: validFontHeading,
+    font_body: validFontBody,
     theme_manual_override: readBoolean("theme_manual_override"),
     primary_color: read("primary_color") || DEFAULT_STORE_SETTINGS.primary_color,
     accent_color: read("accent_color") || DEFAULT_STORE_SETTINGS.accent_color,

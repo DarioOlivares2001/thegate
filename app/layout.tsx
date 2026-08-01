@@ -1,21 +1,9 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { buildThemeCssProperties } from "@/lib/store-settings/buildThemeCssProperties";
 import { getStoreSettings } from "@/lib/store-settings/getStoreSettings";
 import { getPublicSiteUrl } from "@/lib/site-url";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-});
+import { FONT_VARIABLE_CLASSNAME } from "@/lib/fonts/registry";
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getStoreSettings();
@@ -47,25 +35,15 @@ export default function RootLayout({
 
   return (
     <html lang="es">
-      <BodyWithTheme
-        interClass={inter.variable}
-        displayClass={spaceGrotesk.variable}
-        settingsPromise={settingsPromise}
-      >
-        {children}
-      </BodyWithTheme>
+      <BodyWithTheme settingsPromise={settingsPromise}>{children}</BodyWithTheme>
     </html>
   );
 }
 
 async function BodyWithTheme({
-  interClass,
-  displayClass,
   settingsPromise,
   children,
 }: {
-  interClass: string;
-  displayClass: string;
   settingsPromise: ReturnType<typeof getStoreSettings>;
   children: React.ReactNode;
 }) {
@@ -73,7 +51,7 @@ async function BodyWithTheme({
   const themeVars = buildThemeCssProperties(settings);
 
   return (
-    <body style={themeVars} className={`${interClass} ${displayClass} antialiased`}>
+    <body style={themeVars} className={`${FONT_VARIABLE_CLASSNAME} antialiased`}>
       {children}
     </body>
   );

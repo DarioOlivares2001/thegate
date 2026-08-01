@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { StoreSettingsView } from "@/lib/store-settings/getStoreSettings";
 import { canvasColorsChanged, sanitizeReadableCanvasColors } from "@/lib/store-settings/sanitizeReadableTheme";
+import { resolveFontCssVar } from "@/lib/fonts/registry";
 
 type ThemePreset =
   | "minimal_black"
@@ -99,13 +100,6 @@ function isVeryLight(hex: string) {
   return luminance > 220;
 }
 
-function normalizeFontFamily(value: string | undefined, fallbackVar: string) {
-  const cleaned = (value ?? "").trim();
-  if (!cleaned) return fallbackVar;
-  if (cleaned.includes(",")) return cleaned;
-  return `'${cleaned}', system-ui, sans-serif`;
-}
-
 /** Colores de pintura (canvas + marca) según preset / override manual. */
 export function computeThemePaint(settings: StoreSettingsView) {
   const presetTheme = getPresetThemePalette(settings.theme_preset);
@@ -162,8 +156,8 @@ export function buildThemeCssProperties(settings: StoreSettingsView): CSSPropert
 
   const primaryRgb = toRgbTriplet(primary, "109 40 217");
   const accentRgb = toRgbTriplet(accent, "244 114 182");
-  const headingFont = normalizeFontFamily(settings.font_heading, "var(--font-display)");
-  const bodyFont = normalizeFontFamily(settings.font_body, "var(--font-sans)");
+  const headingFont = resolveFontCssVar(settings.font_heading, "var(--font-display)");
+  const bodyFont = resolveFontCssVar(settings.font_body, "var(--font-sans)");
   const logoDesktop = Number(settings.logo_size_desktop) > 0 ? settings.logo_size_desktop : 32;
   const logoMobile = Number(settings.logo_size_mobile) > 0 ? settings.logo_size_mobile : 28;
   const brandScale = Number(settings.brand_text_scale) > 0 ? settings.brand_text_scale : 1;

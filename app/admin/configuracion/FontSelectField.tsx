@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { resolveFontCssVar } from "@/lib/fonts/registry";
 
 type FontSelectFieldProps = {
   label: string;
@@ -40,7 +41,7 @@ export function FontSelectField({
       {helperText ? <span className="text-xs text-zinc-500">{helperText}</span> : null}
       <div
         className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700"
-        style={{ fontFamily: `'${selected}', system-ui, sans-serif` }}
+        style={{ fontFamily: resolveFontCssVar(selected, "system-ui, sans-serif") }}
       >
         {previewText}
       </div>
